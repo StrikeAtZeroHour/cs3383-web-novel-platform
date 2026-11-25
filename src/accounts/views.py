@@ -32,12 +32,24 @@ def register(request):
 
 @login_required
 def my_profile(request):
-    """Own profile page with the user's published novels (A3)."""
+    """Own profile page with tabbed novels + favorites (A3, D2)."""
+    from interaction.models import Favorite
+
     published = Novel.objects.published().filter(author=request.user)
+    favorites = (
+        Favorite.objects.filter(user=request.user)
+        .select_related('novel__author', 'novel__category')
+        .order_by('-created_at')
+    )
+    tab = request.GET.get('tab', 'works')
     context = {
         'profile_user': request.user,
         'novels': published,
+        'favorites': favorites,
+        'tab': tab,
         'is_self': True,
+        'follower_count': request.user.followers.count(),
+        'following_count': request.user.following.count(),
     }
     return render(request, 'accounts/profile.html', context)
 
@@ -45,12 +57,21 @@ def my_profile(request):
 def author_profile(request, username):
     """Public author page: their published novels (B7)."""
     from django.contrib.auth.models import User
+    from interaction.models import Follow
 
     user = get_object_or_404(User, username=username)
+    is_self = request.user.is_authenticated and request.user.pk == user.pk
+    is_following = (
+        request.user.is_authenticated
+        and Follow.objects.filter(follower=request.user, author=user).exists()
+    )
     context = {
         'profile_user': user,
         'novels': Novel.objects.published().filter(author=user),
-        'is_self': request.user.is_authenticated and request.user.pk == user.pk,
+        'is_self': is_self,
+        'is_following': is_following,
+        'follower_count': user.followers.count(),
+        'following_count': user.following.count(),
     }
     return render(request, 'accounts/profile.html', context)
 
@@ -70,3 +91,18 @@ def edit_profile(request):
         form = ProfileForm(instance=profile)
 
     return render(request, 'accounts/profile_edit.html', {'form': form})
+
+
+@login_required
+def verify_email(request):
+    """Mark the current user's email as verified (lightweight extension).
+
+    A full flow would send a signed token by email; for this prototype the
+    signed-in user can confirm their own address in one click.
+    """
+    profile, _created = Profile.objects.get_or_create(user=request.user)
+    if not profile.email_verified:
+        profile.email_verified = True
+        profile.save(update_fields=['email_verified'])
+        messages.success(request, _('Email verified.'))
+    return redirect('accounts:profile')

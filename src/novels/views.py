@@ -7,18 +7,19 @@ workflows delegate to `NovelService`.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, F, Q
 from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 
 from accounts.permissions import author_or_admin
 from interaction.forms import CommentForm
-from interaction.models import Comment, Rating
+from interaction.models import Comment, Notification, Rating, ReadingProgress
 
 from .forms import ChapterForm, NovelForm
-from .models import Category, Chapter, Novel
+from .models import Category, Chapter, Novel, Tag, Volume
 from .services import NovelService
 
 PAGE_SIZE = 12
@@ -58,13 +59,28 @@ def novel_list(request):
     if category_id.isdigit():
         novels = novels.filter(category_id=int(category_id))
 
+    tag = request.GET.get('tag', '').strip()
+    if tag:
+        novels = novels.filter(tags__name=tag)
+
+    status = request.GET.get('status', '').strip()
+    if status in dict(Novel.Status.choices):
+        novels = novels.filter(status=status)
+
+    min_words = request.GET.get('min_words', '').strip()
+    if min_words.isdigit():
+        novels = novels.filter(word_count__gte=int(min_words))
+
     sort = request.GET.get('sort', 'updated')
     sort_map = {
         'updated': ('-updated_at',),
         'newest': ('-created_at',),
         'popular': ('-favorite_count', '-updated_at'),
         'title': ('title',),
+        'views': ('-view_count',),
+        'rating': ('-avg_rating', '-updated_at'),
     }
+    novels = novels.annotate(avg_rating=Avg('ratings__score'))
     novels = novels.order_by(*sort_map.get(sort, sort_map['updated']))
 
     paginator = Paginator(novels, PAGE_SIZE)
@@ -73,8 +89,12 @@ def novel_list(request):
     context = {
         'page_obj': page,
         'categories': Category.objects.all(),
+        'tags': Tag.objects.all(),
         'query': query,
         'selected_category': category_id,
+        'selected_tag': tag,
+        'selected_status': status,
+        'min_words': min_words,
         'sort': sort,
     }
     return render(request, 'novels/novel_list.html', context)
@@ -91,7 +111,11 @@ def novel_detail(request, pk):
     if not novel.is_published and not is_author_or_admin:
         raise Http404(_('Novel not found.'))
 
-    chapters = novel.chapters.active().order_by('order')
+    # Count a view for the public page (authors/admins previewing excluded).
+    if novel.is_published and not is_author_or_admin:
+        Novel.objects.filter(pk=novel.pk).update(view_count=F('view_count') + 1)
+
+    chapters = novel.chapters.filter(is_active=True, is_draft=False).order_by('order')
     stats = novel.ratings.aggregate(avg=Avg('score'), total=Count('pk'))
     user_rating = None
     is_favorited = False
@@ -109,6 +133,13 @@ def novel_detail(request, pk):
         'rating_count': stats['total'],
         'user_rating': user_rating,
         'is_favorited': is_favorited,
+        'progress': (
+            ReadingProgress.objects.filter(user=request.user, novel=novel)
+            .select_related('chapter')
+            .first()
+            if request.user.is_authenticated
+            else None
+        ),
     }
     return render(request, 'novels/novel_detail.html', context)
 
@@ -121,8 +152,20 @@ def chapter_read(request, novel_pk, order):
         raise Http404(_('Novel not found.'))
 
     chapter = get_object_or_404(
-        Chapter.objects.active(), novel=novel, order=order
+        Chapter.objects.visible(), novel=novel, order=order
     )
+
+    if novel.is_published and not is_author_or_admin:
+        Chapter.objects.filter(pk=chapter.pk).update(
+            view_count=F('view_count') + 1)
+
+    if request.user.is_authenticated:
+        # C5: remember the last chapter read for this user/novel.
+        ReadingProgress.objects.update_or_create(
+            user=request.user,
+            novel=novel,
+            defaults={'chapter': chapter},
+        )
 
     comments = (
         Comment.objects.active()
@@ -154,9 +197,15 @@ def my_novels(request):
     novels = (
         Novel.objects.filter(author=request.user)
         .select_related('category')
-        .annotate(chapter_count=Count('chapters', filter=Q(chapters__is_active=True)))
+        .annotate(
+            chapter_count=Count('chapters', filter=Q(chapters__is_active=True)),
+            favorite_count=Count('favorites', distinct=True),
+            comment_count=Count('chapters__comments', distinct=True),
+        )
     )
-    return render(request, 'novels/my_novels.html', {'novels': novels})
+    paginator = Paginator(novels, PAGE_SIZE)
+    page = paginator.get_page(request.GET.get('page'))
+    return render(request, 'novels/my_novels.html', {'page_obj': page})
 
 
 @login_required
@@ -241,11 +290,13 @@ def chapter_create(request, novel_pk):
     if request.method == 'POST':
         form = ChapterForm(request.POST)
         if form.is_valid():
-            NovelService.create_chapter(
+            chapter = NovelService.create_chapter(
                 novel,
                 title=form.cleaned_data['title'],
                 content=form.cleaned_data['content'],
             )
+            chapter.scheduled_at = form.cleaned_data.get('scheduled_at')
+            chapter.save(update_fields=['scheduled_at'])
             messages.success(request, _('Chapter added.'))
             return redirect('novels:novel_detail', pk=novel.pk)
     else:
@@ -312,4 +363,133 @@ def chapter_reorder(request, novel_pk, pk, direction):
     if target is not None:
         NovelService.reorder_chapter(chapter, target.order)
         messages.success(request, _('Chapter order updated.'))
+    return redirect('novels:novel_detail', pk=novel.pk)
+
+
+# ---------------------------------------------------------------- discovery: rankings, recent
+
+def ranking(request):
+    """Leaderboard page with several ranking modes (B6 extension)."""
+    mode = request.GET.get('mode', 'popular')
+    base = Novel.objects.published().select_related('author', 'category').annotate(
+        favorite_count=Count('favorites', distinct=True),
+        comment_count=Count('chapters__comments', distinct=True),
+        avg_rating=Avg('ratings__score'),
+    )
+    mode_map = {
+        'popular': ('-favorite_count', '-updated_at'),
+        'views': ('-view_count', '-updated_at'),
+        'rating': ('-avg_rating', '-updated_at'),
+        'comments': ('-comment_count', '-updated_at'),
+        'newest': ('-created_at',),
+    }
+    novels = base.order_by(*mode_map.get(mode, mode_map['popular']))[:50]
+    context = {'novels': novels, 'mode': mode}
+    return render(request, 'novels/ranking.html', context)
+
+
+def recent_updates(request):
+    """Latest chapter updates across all published novels (B1 extension)."""
+    today = timezone.now().date()
+    chapters = (
+        Chapter.objects.active()
+        .filter(novel__is_published=True, is_draft=False)
+        .select_related('novel', 'novel__author')
+        .order_by('-created_at')[:60]
+    )
+    todays = [c for c in chapters if timezone.localtime(c.created_at).date() == today]
+    context = {'chapters': chapters, 'todays_count': len(todays)}
+    return render(request, 'novels/recent.html', context)
+
+
+def chapter_toc(request, pk):
+    """Standalone table of contents grouped by volume (C3 extension)."""
+    novel = get_object_or_404(Novel.objects.select_related('author'), pk=pk)
+    is_author_or_admin = author_or_admin.can_edit(novel, request.user)
+    if not novel.is_published and not is_author_or_admin:
+        raise Http404(_('Novel not found.'))
+    visible_qs = novel.chapters.filter(is_active=True)
+    if not is_author_or_admin:
+        visible_qs = visible_qs.filter(is_draft=False)
+    volumes = novel.volumes.all()
+    chapters = visible_qs.order_by('order')
+    context = {'novel': novel, 'volumes': volumes, 'chapters': chapters}
+    return render(request, 'novels/toc.html', context)
+
+
+# ---------------------------------------------------------------- author dashboard / outline
+
+@login_required
+def dashboard(request):
+    """Author dashboard: per-novel favorites/comments/views (E8)."""
+    novels = (
+        Novel.objects.filter(author=request.user)
+        .annotate(
+            favorite_count=Count('favorites', distinct=True),
+            comment_count=Count('chapters__comments', distinct=True),
+            total_views=F('view_count'),
+        )
+        .order_by('-updated_at')
+    )
+    return render(request, 'novels/dashboard.html', {'novels': novels})
+
+
+@login_required
+def outline_list(request, novel_pk):
+    """List outline items for a novel (writing workspace, minimal)."""
+    from interaction.models import OutlineItem
+    novel = get_object_or_404(Novel, pk=novel_pk)
+    if not author_or_admin.can_edit(novel, request.user):
+        return HttpResponseForbidden(_('You are not allowed to edit this novel.'))
+    items = novel.outline.all()
+    return render(request, 'novels/outline_list.html', {'novel': novel, 'items': items})
+
+
+@login_required
+@require_POST
+def outline_create(request, novel_pk):
+    """Create an outline item (writing workspace, minimal)."""
+    from interaction.models import OutlineItem
+    novel = get_object_or_404(Novel, pk=novel_pk)
+    if not author_or_admin.can_edit(novel, request.user):
+        return HttpResponseForbidden(_('You are not allowed to edit this novel.'))
+    title = request.POST.get('title', '').strip()
+    if title:
+        order = (novel.outline.count() or 0) + 1
+        OutlineItem.objects.create(
+            novel=novel, title=title, body=request.POST.get('body', ''), order=order)
+        messages.success(request, _('Outline item added.'))
+    return redirect('novels:outline_list', novel_pk=novel.pk)
+
+
+# ---------------------------------------------------------------- volumes
+
+@login_required
+@require_POST
+def volume_create(request, novel_pk):
+    """Create a volume/part for a novel (C4)."""
+    novel = get_object_or_404(Novel, pk=novel_pk)
+    if not author_or_admin.can_edit(novel, request.user):
+        return HttpResponseForbidden(_('You are not allowed to edit this novel.'))
+    title = request.POST.get('title', '').strip()
+    if title:
+        order = (novel.volumes.count() or 0) + 1
+        Volume.objects.create(novel=novel, title=title, order=order)
+        messages.success(request, _('Volume added.'))
+    return redirect('novels:novel_detail', pk=novel.pk)
+
+
+# ---------------------------------------------------------------- chapter draft / schedule
+
+@login_required
+@require_POST
+def chapter_toggle_draft(request, novel_pk, pk):
+    """Toggle a chapter between draft and visible (C6 draft state)."""
+    novel = get_object_or_404(Novel, pk=novel_pk)
+    if not author_or_admin.can_edit(novel, request.user):
+        return HttpResponseForbidden(_('You are not allowed to edit this novel.'))
+    chapter = get_object_or_404(Chapter, pk=pk, novel=novel)
+    chapter.is_draft = not chapter.is_draft
+    chapter.save(update_fields=['is_draft'])
+    messages.success(request, _('Chapter visibility updated.'))
     return redirect('novels:novel_detail', pk=novel.pk)

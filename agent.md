@@ -52,16 +52,23 @@ project 2026/
 └── .venv/               # 虛擬環境（含 gettext 工具）
 ```
 
-## 主要資料模型（規劃）
+## 主要資料模型（實際，已含 v2 擴充）
 
 - `User`（沿用 Django 內建，不需 role 欄位）
-- `Profile`（user OneToOne: nickname, avatar, bio）
-- `Novel`(title, author FK, cover, summary, category FK, status[ongoing/completed, default ongoing], is_published[預設 False，作者按「發布」後為 True], created_at, updated_at)
-- `Chapter`（novel FK, order, title, content, is_active, created_at, published_at）
-- `Favorite`（user + novel，unique together）
-- `Comment`（user, chapter FK, content, is_active, created_at, parent FK 可為 null → 一層回覆）
+- `Profile`（user OneToOne: nickname, avatar, bio, **email_verified**）
 - `Category`（name：只存英文標籤，顯示文字由 gettext `label` 提供）
-- `Rating`（user + novel，unique together，score 1–5，created_at, updated_at）
+- `Tag`（name；Novel M2M `tags`）
+- `Volume`（novel FK, title, order）— 卷階層
+- `Novel`(title, author FK, cover, summary, category FK, status[ongoing/completed], is_published[預設 False], **tags M2M, view_count, word_count**, created_at, updated_at)
+- `Chapter`（novel FK, **volume FK(nullable)**, order, title, content, is_active, **is_draft, scheduled_at, view_count, word_count**, created_at, published_at；`save()` 自動計算字數）
+- `Favorite`（user + novel，unique together）
+- `Comment`（user, chapter FK, content, is_active, **is_spoiler, likes M2M(user)**, parent FK（**多層回覆**）, created_at）
+- `Rating`（user + novel，unique together，score 1–5）
+- `ReadingProgress`（user + novel unique，chapter FK, updated_at）— 閱讀進度
+- `Notification`（recipient, kind[reply/new_chapter], message, url, is_read, created_at）
+- `Follow`（follower + author，unique together）
+- `Report`（reporter, novel/comment nullable, reason, status[open/resolved/rejected], created_at）
+- `OutlineItem`（novel FK, title, body, order）— 寫作大綱
 
 ### 刪除策略（統一說明）
 
@@ -85,12 +92,34 @@ project 2026/
 |---|---|
 | **使用者** | 訪客、已登入用戶、admin 三種身分；**人人皆可創作**，無作者申請流程 |
 | **內容** | 單一平台內的長篇小說（文字），含封面圖；分類由 admin 預先建立 |
-| **閱讀** | 瀏覽、搜尋、分類篩選、排序、閱讀章節、上一章／下一章 |
-| **互動** | 收藏、章節留言（含一層回覆）、作品評分（1–5 星） |
-| **創作** | 新增／編輯／刪除作品、章節增刪改與排序、發布控制 |
-| **管理** | Django Admin 管理全部資料、下架違規內容 |
+| **閱讀** | 瀏覽、搜尋、分類／標籤／狀態／字數篩選、排序、排行榜、最近更新、閱讀章節、上一章／下一章、章節目錄頁、**閱讀進度續讀**、瀏覽數統計 |
+| **互動** | 收藏、章節留言（含**多層回覆、按讚、劇透標記**）、作品評分（1–5 星）、**追蹤作者、通知、違規檢舉** |
+| **創作** | 新增／編輯／刪除作品、章節增刪改與排序、發布控制、**卷階層、章節草稿、定時發布、字數統計、作者儀表板、寫作大綱** |
+| **管理** | Django Admin 管理全部資料、下架違規內容、**檢舉佇列** |
 | **語系** | 中英雙語（Django i18n），介面文字翻譯，使用者內容不翻譯 |
-| **品質** | 自動化測試 > 50 個、Bug Report > 10 份 |
+| **整合** | **只讀 JSON API**（`/api/novels/`）、CI（GitHub Actions）、env 化設定、lockfile |
+| **品質** | 自動化測試 **187 個、100% 覆蓋率**、Bug Report > 10 份 |
+
+### v2 擴充（本次新增，原列於 Out of Scope 者已改為實作）
+
+| 功能 | 實作方式 |
+|---|---|
+| 閱讀進度（C5） | `ReadingProgress`（每用戶每作品一筆），章節頁 upsert、詳情頁「Continue reading」 |
+| 瀏覽數 / 字數（E8） | `Novel.view_count / word_count`、`Chapter.view_count / word_count`（CJK 逐字、Latin 逐詞） |
+| 排行榜 / 最近更新 | `/rankings/`（最熱/最多瀏覽/最高評分/最多討論/最新）、`/recent/` |
+| 標籤、狀態、字數篩選 | `Tag` M2M + `novel_list` 篩選參數 |
+| 卷階層（C4） | `Volume` model + 建立端點；章節可掛卷 |
+| 章節草稿 / 定時發布（C6） | `Chapter.is_draft`、`scheduled_at`；讀取時判斷（無排程器） |
+| 章節目錄頁 | `/novels/<pk>/toc/`（依卷分組、錨點） |
+| 寫作大綱 | `OutlineItem` + `/my/novels/<pk>/outline/` |
+| 作者儀表板 | `/my/dashboard/`（收藏/評論/瀏覽/字數） |
+| 多層留言 + 讚 + 劇透（D6） | `parent` 不限層數、`likes` M2M、`is_spoiler` |
+| 追蹤作者 | `Follow` + follow/unfollow 端點 |
+| 通知（C17） | `Notification` + 列表/標為已讀 |
+| Email 驗證 / 密碼重設 | `Profile.email_verified` + verify 端點；Django `PasswordResetView` |
+| 違規檢舉（F2） | `Report` model + 使用者檢舉表單 |
+| 只讀 JSON API | `novels/api.py`（列表/詳情，metadata） |
+| 工程 | `.github/workflows/test.yml`、`requirements.lock`、env 化 `SECRET_KEY/DEBUG/ALLOWED_HOSTS` |
 
 ### 不做的範圍（Out of Scope）
 
@@ -99,16 +128,17 @@ project 2026/
 | 排除項目 | 理由 |
 |---|---|
 | **付費 / 訂閱 / 打賞** | 涉及金流與法規，與課程目標無關 |
-| **即時通知**（WebSocket） | 需 ASGI / channel layer，超出 prototype 的技術範圍 |
+| **即時通知**（WebSocket） | 需 ASGI / channel layer；目前通知為資料庫輪詢式（非即時推送） |
 | **全文檢索引擎**（Elasticsearch） | SQLite `icontains` 已足夠展示搜尋功能 |
-| **圖片裁切／壓縮／CDN** | 使用 `ImageField` 本地儲存即可 |
-| **社群功能**（追蹤作者、私訊、動態牆） | 會使資料模型膨脹，超出 39 項需求 |
-| 多層留言（**第二層以上**） | 刻意限制為一層回覆（`parent` 自關聯），簡化 UI 與驗證（見 D6） |
+| **圖片裁切／壓縮／CDN** | 使用 `ImageField` 本地儲存即可（未加上傳大小/尺寸驗證） |
+| **私訊 / 動態牆** | 追蹤作者已實作；私訊與動態牆仍不做 |
 | **富文本編輯器** | 章節內容存純文字，安全且易測試 |
 | **行動 App / 原生客戶端** | 以 Bootstrap 5 響應式網頁取代 |
 | **多語系內容翻譯** | 只翻譯介面，不翻譯小說內容 |
-| **資料匯出 / 匯入** | 無實際需求 |
-| **部署到雲端（含 HTTPS、備份）** | 只在本地 `runserver` 執行，見下方限制 |
+| **資料匯出 / 匯入** | 仍無實作（未做 CSV/JSON 匯出） |
+| **部署到雲端（含 HTTPS、備份）** | 只在本地 `runserver` 執行；已 env 化設定但未提供部署設定 |
+
+> 已從此表移除並實作：追蹤作者、多層留言、資料庫通知、章節草稿/定時發布、卷階層、閱讀進度、瀏覽數、字數、排行榜、檢舉。詳見「v2 擴充」。
 
 ### 技術限制（Constraints）
 
@@ -122,8 +152,8 @@ project 2026/
 
 ### 成功標準（Definition of Done）
 
-1. 39 項需求中，**27 項必須（✅）全部完成**
-2. 每個 app 皆有 `TestCase`，**總測試數 > 50** 且全數通過
+1. 39 項需求中，**27 項必須（✅）全部完成**；v2 擴充功能亦全部實作
+2. 每個 app 皆有 `TestCase`，**實際 187 個測試、100% 覆蓋率**，全數通過
 3. 三張核心 UML 圖 + 5 張 Sequence Diagram 完成並可渲染
 4. 至少 **10 份**格式完整的 Bug Report（含重現步驟、期望／實際結果）
 5. 中英雙語切換可用：導覽列切換後**全站介面**（含分類名稱）即時變中文／英文，資料庫與程式碼不含中文
@@ -166,7 +196,7 @@ project 2026/
 | C2 | 上一章／下一章 | 章節導航 | ✅ |
 | C3 | 章節目錄 | 從作品頁跳轉到任意章節 | ✅ |
 | C4 | 免登入閱讀 | 訪客也能看章節 | ✅ |
-| C5 | 閱讀進度記錄 | 記住上次讀到哪個章節 | 🟡 |
+| C5 | 閱讀進度記錄 | 記住上次讀到哪個章節（`ReadingProgress`，詳情頁續讀） | ✅ 已實作 |
 
 ### D. 互動（interaction）
 
@@ -177,7 +207,7 @@ project 2026/
 | D3 | 章節評論 | 在章節下發表評論 | ✅ |
 | D4 | 刪除評論 | 評論作者本人或 admin 可刪 | ✅ |
 | D5 | 評論分頁 | 按時間排序顯示 | 🔵 |
-| D6 | 評論回覆 | 一層回覆（parent FK） | 🔵 |
+| D6 | 評論回覆 | 多層回覆（parent FK，不限層數） | 🔵 已實作 |
 | D7 | 作品評分 | 每人對每部作品打 1–5 星，可修改 | 🔵 |
 
 ### E. 創作（所有登入用戶皆可使用）
@@ -191,7 +221,7 @@ project 2026/
 | E5 | 章節管理 | 新增／編輯／刪除章節 | ✅ |
 | E6 | 章節排序 | 依 `order` 自動編排章節，可調整順序 | ✅ |
 | E7 | 發布控制 | 作品建立後預設**不公開**，作者按下「發布」才出現在列表與搜尋結果；發布不要求有任何章節 | 🔵 |
-| E8 | 作品統計 | 顯示自己作品的收藏數、評論數 | 🟡 |
+| E8 | 作品統計 | 作者儀表板顯示收藏數、評論數、瀏覽數、字數 | 🟡 已實作 |
 
 ### F. 管理後台（admin）
 
@@ -215,6 +245,7 @@ project 2026/
 - 🔵 應該：9 項
 - 🟡 加分：3 項
 - 合計：**39 項功能**
+- **全部 39 項已實作**；另加 v2 擴充（排行、標籤、卷、草稿、定時、字數、儀表板、大綱、多層留言/讚/劇透、追蹤、通知、檢舉、Email 驗證、重設、JSON API、CI、env 設定）
 
 > 註：原 G2（自訂錯誤頁）已移除，編號保留空缺以維持追溯性；G4、G5 屬開發活動，不對應畫面功能。
 
@@ -223,11 +254,11 @@ project 2026/
 1. **人人皆可創作**：不設角色區分與作者申請流程，權限規則為「已登入可創作，僅能改自己的內容」，與 Pixiv / AO3 一致。
 2. **評論掛在章節**：與閱讀情境結合，作品頁顯示評論總數。
 3. **保留評分（1–5 星）**：成本低，可增加測試案例。
-4. **支援一層回覆**：以 `parent` 自關聯 FK 實作。
+4. **支援多層回覆**（v2 調整）：以 `parent` 自關聯 FK 實作，原本限制一層，v2 放寬為不限層數（模板遞迴顯示）。`CommentForm` 只驗證父留言存在與屬同一章節。
 5. **中英雙語（gettext 實作）**：所有介面文字用 `{% trans %}` 或 `gettext` 標記；用戶內容（書名、正文、簡介、留言）不翻譯；英文為基底語言，中文缺翻譯時 fallback 回英文。
 6. **修改密碼走 Django 內建表單**：資料庫存的是雜湊密碼，透過 `PasswordChangeForm` 由程式正確更新 `auth_user.password`。
-7. **發布不要求有章節（E7）**：作品建立後為**未發布**（`is_published=False`），作者按「發布」後才公開。**「至少要有一章」不是平台規則**：章節一建立即公開（`published_at` 自動填現在時間），因此沒有「章節草稿」概念，也就不該用「有沒有章節」阻擋發布。未發布或零章節的作品在詳情頁顯示「暫無章節」。
-   - 這樣 `Chapter.published_at` 與 `Novel.is_published` 各司其職：前者只是章節建立時間，後者才是作品曝光開關，兩者不會互相矛盾。
+7. **發布不要求有章節（E7）**：作品建立後為**未發布**（`is_published=False`），作者按「發布」後才公開。**「至少要有一章」不是平台規則**：因此不用「有沒有章節」阻擋發布。未發布或零章節的作品在詳情頁顯示「暫無章節」。
+   - `Chapter.published_at` 記錄建立時間，`Novel.is_published` 是作品曝光開關；v2 另加 `Chapter.is_draft` / `scheduled_at` 控制單章可見性（草稿不對讀者顯示、定時在讀取時判斷是否到期），由 `ChapterQuerySet.visible()` 統一過濾。
 8. **分類名稱用 gettext 翻譯，不設 `name_en` 欄位**（決議於 i18n 實作階段，取代原「`name` 存中文 + `name_en` 存英文」的設計）：
    - **問題**：原設計把中文寫進資料庫（`name='奇幻'`）與 `seed_demo`，違反「程式碼與初始化資料不寫中文」與「所有介面文字走 gettext」的原則，且同一件事有兩份真相（DB 與 `.po`）。
    - **決議**：`Category` 只保留一個 `name` 欄位，存**英文標籤**（`Fantasy`、`Science Fiction`…）；`name_en` 欄位移除（migration `0002_remove_category_name_en`）。中文由 `locale/zh_Hant/LC_MESSAGES/django.po` 提供，`seed_demo` 的分類名稱以 `_()` 標記。
@@ -242,6 +273,9 @@ project 2026/
    - 原 `i18n_patterns(prefix_default_language=False)` 在切到中文後會 404：`LocalePrefixPattern` 以**當前語言**計算前綴，中文時期待 `zh-hant/`，而站內連結都是 `/novels/`。因此 `urls.py` 改回一般 `path()`，語言只由 `django_language` cookie（導覽列切換）決定。
    - Django 內建 `LocaleMiddleware` 在無語言前綴的路徑會強制回 `LANGUAGE_CODE`，故新增 `config/middleware.py::LocaleMiddleware`（繼承內建類、改用 cookie / `Accept-Language` 決定語言），設定 `Content-Language` 與 `Vary`。
 10. **gettext 工具以 mlocati static build 安裝**：Windows 無內建 `xgettext`/`msgfmt`，安裝 GNU gettext 1.0（SHA256 已核對）至 `.venv/Scripts/gettext/` 並加入 PATH；`.mo` 不進版控，需執行 `compilemessages`。流程見 `ENVIRONMENT.md`。
+11. **定時發布無排程器（v2）**：`Chapter.scheduled_at` 只做「讀取時判斷」（`visible()` 過濾 `scheduled_at > now`），不引入 Celery / cron，維持同步 stack；到期與否在每次查詢即時計算。
+12. **環境變數化設定（v2）**：`SECRET_KEY / DEBUG / ALLOWED_HOSTS` 由環境變數讀取；`DEBUG=False` 且無 `DJANGO_SECRET_KEY` 時啟動直接 `ImproperlyConfigured`，避免誤用開發金鑰上線。開發以 `.env`（`.env.example` 為範本）提供。測試工具（coverage / pytest / pytest-django）置於 `requirements-dev.txt`，執行期相依鎖在 `requirements.lock`。
+13. **測試策略（v2）**：Django `TestCase` 為主要 runner（`manage.py test`）；VS Code Testing 面板改用 `pytest + pytest-django`（官方建議的 Django 路徑），兩者皆可跑同一批 187 測試。覆蓋率以 `coverage --branch` 量測，維持 statements/branches 100%。
 
 ## 報告對應（Final_Report_Marking_Scheme.docx）
 

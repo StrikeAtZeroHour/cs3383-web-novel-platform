@@ -34,6 +34,20 @@ class Category(models.Model):
         return gettext(self.name)
 
 
+class Tag(models.Model):
+    """Free-form tag applied to novels (C11 extension)."""
+
+    name = models.CharField(_('Name'), max_length=50, unique=True)
+
+    class Meta:
+        verbose_name = _('Tag')
+        verbose_name_plural = _('Tags')
+        ordering = ['name']
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class NovelQuerySet(models.QuerySet):
     """Reusable querysets for the browsing pages (B1, B2, B3, B4, B6)."""
 
@@ -75,6 +89,10 @@ class Novel(models.Model):
         default=Status.ONGOING,
     )
     is_published = models.BooleanField(_('Published'), default=False)
+    tags = models.ManyToManyField(
+        Tag, blank=True, related_name='novels', verbose_name=_('Tags'))
+    view_count = models.PositiveIntegerField(_('View count'), default=0)
+    word_count = models.PositiveIntegerField(_('Word count'), default=0)
     created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
     updated_at = models.DateTimeField(_('Updated at'), auto_now=True)
 
@@ -112,9 +130,36 @@ class Novel(models.Model):
         return (current or 0) + 1
 
 
+class Volume(models.Model):
+    """A volume/part grouping chapters inside a novel (C4 extension)."""
+
+    novel = models.ForeignKey(
+        Novel,
+        on_delete=models.CASCADE,
+        related_name='volumes',
+        verbose_name=_('Novel'),
+    )
+    title = models.CharField(_('Title'), max_length=200)
+    order = models.PositiveIntegerField(_('Order'), default=1)
+
+    class Meta:
+        verbose_name = _('Volume')
+        verbose_name_plural = _('Volumes')
+        ordering = ['order']
+
+    def __str__(self) -> str:
+        return f'{self.novel.title} - Vol.{self.order} {self.title}'
+
+
 class ChapterQuerySet(models.QuerySet):
     def active(self):
         return self.filter(is_active=True)
+
+    def visible(self):
+        """Chapters a reader may see: active, not draft, and scheduled time due."""
+        return self.filter(is_active=True, is_draft=False).filter(
+            models.Q(scheduled_at__isnull=True) | models.Q(scheduled_at__lte=timezone.now())
+        )
 
 
 class Chapter(models.Model):
@@ -131,10 +176,24 @@ class Chapter(models.Model):
         related_name='chapters',
         verbose_name=_('Novel'),
     )
+    volume = models.ForeignKey(
+        Volume,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chapters',
+        verbose_name=_('Volume'),
+    )
     title = models.CharField(_('Chapter title'), max_length=200)
     content = models.TextField(_('Content'))
     order = models.PositiveIntegerField(_('Order'))
     is_active = models.BooleanField(_('Active'), default=True)
+    is_draft = models.BooleanField(_('Draft'), default=False)
+    scheduled_at = models.DateTimeField(
+        _('Scheduled at'), null=True, blank=True,
+        help_text=_('If set in the future, the chapter is hidden until then.'))
+    view_count = models.PositiveIntegerField(_('View count'), default=0)
+    word_count = models.PositiveIntegerField(_('Word count'), default=0)
     created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
     published_at = models.DateTimeField(
         _('Published at'),
@@ -160,6 +219,20 @@ class Chapter(models.Model):
 
     def __str__(self) -> str:
         return f'{self.novel.title} - Ch.{self.order} {self.title}'
+
+    @staticmethod
+    def count_words(text) -> int:
+        """Word count: Latin words by whitespace, CJK counted per character."""
+        total = 0
+        for token in (text or '').split():
+            cjk = sum(1 for ch in token if '\u4e00' <= ch <= '\u9fff')
+            latin = len([ch for ch in token if not ('\u4e00' <= ch <= '\u9fff')])
+            total += cjk + (1 if latin else 0)
+        return total
+
+    def save(self, *args, **kwargs):
+        self.word_count = self.count_words(self.content)
+        super().save(*args, **kwargs)
 
     def get_absolute_url(self) -> str:
         from django.urls import reverse

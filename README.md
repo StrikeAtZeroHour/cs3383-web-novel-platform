@@ -2,6 +2,11 @@
 
 讀者／創作者雙端的網路小說平台（CS3383 課程專案），以 Django + SQLite 實作。
 
+> **擴充功能（v2）**：閱讀進度續讀、瀏覽數統計、排行榜、最近更新、章節目錄、
+> 標籤/狀態/字數篩選、卷階層、章節草稿與定時發布、字數統計、作者儀表板、
+> 寫作大綱、留言按讚/劇透/多層回覆、追蹤作者、通知、Email 驗證、密碼重設、
+> 違規檢舉、只讀 JSON API、CI、env 化設定。測試 187 個、覆蓋率 100%。
+
 ## 目錄結構
 
 ```
@@ -31,23 +36,27 @@ project 2026/
 所有 `manage.py` 指令都必須在 `src/` 內執行。
 
 ```powershell
-# 1. 啟動虛擬環境（從專案根目錄）
+# 1. 建立並啟動虛擬環境（從專案根目錄；若已有 .venv 可跳過建立）
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# 2. 進入程式碼目錄
+# 2. 安裝相依套件（執行 http 用 runtime；含 coverage/pytest 的開發工具用 requirements-dev）
+pip install -r src\requirements.txt
+
+# 3. 進入程式碼目錄
 cd src
 
-# 3. 建立資料表
+# 4. 建立資料表
 python manage.py migrate
 
-# 4. 載入示範資料
+# 5. 載入示範資料
 python manage.py seed_demo
 
-# 5. 編譯中文翻譯（.mo 不進版控，新環境必做）
+# 6. 編譯中文翻譯（.mo 不進版控，新環境必做）
 $env:Path += ";..\.venv\Scripts\gettext\bin"
 python manage.py compilemessages
 
-# 6. 啟動開發伺服器
+# 7. 啟動開發伺服器
 python manage.py runserver
 ```
 
@@ -68,9 +77,24 @@ python manage.py runserver
 cd src
 python manage.py check                     # 檢查設定
 python manage.py makemigrations            # 產生 migration
-python manage.py test                      # 執行測試
+python manage.py test                      # 執行測試（Django 內建 runner，92 測試）
 python manage.py createsuperuser           # 建立管理員
 ```
+
+### 測試與覆蓋率（VS Code）
+
+共 92 個 test case（`accounts` / `interaction` / `novels`）。兩種執行方式：
+
+```powershell
+cd src
+python manage.py test                      # 方式一：Django runner
+python -m pytest                           # 方式二：pytest-django（VS Code Testing 面板用）
+```
+
+- 覆蓋率：`python -m coverage run --rcfile=.coveragerc manage.py test` 後 `python -m coverage report`
+- VS Code：安裝推薦擴充 `littlefoxteam.vscode-python-test-adapter`，左側 **Testing** 面板即列出全部測試。
+- 開發工具需安裝 `pip install -r src\requirements-dev.txt`。
+- 測試行為對照表見 [`src/TEST_COVERAGE.md`](src/TEST_COVERAGE.md)。
 
 ### 翻譯（i18n）
 

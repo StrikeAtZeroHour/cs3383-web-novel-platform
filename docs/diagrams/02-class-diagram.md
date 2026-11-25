@@ -60,6 +60,7 @@ classDiagram
         +str nickname
         +ImageField avatar
         +str bio
+        +bool email_verified
         +datetime created_at
         +datetime updated_at
         +__str__() str
@@ -72,6 +73,20 @@ classDiagram
         +__str__() str "returns label"
     }
 
+    class Tag {
+        +int id
+        +str name "unique"
+        +__str__() str
+    }
+
+    class Volume {
+        +int id
+        +int novel_id
+        +str title
+        +int order
+        +__str__() str
+    }
+
     class Novel {
         +int id
         +int author_id
@@ -81,6 +96,9 @@ classDiagram
         +str summary
         +str status
         +bool is_published
+        +int view_count
+        +int word_count
+        +tags
         +datetime created_at
         +datetime updated_at
         +get_chapter_count() int
@@ -90,12 +108,18 @@ classDiagram
     class Chapter {
         +int id
         +int novel_id
+        +int volume_id
         +str title
         +str content
         +int order
         +bool is_active
+        +bool is_draft
+        +datetime scheduled_at
+        +int view_count
+        +int word_count
         +datetime created_at
         +datetime published_at
+        +count_words(text) int
         +get_next_chapter() Chapter
         +get_prev_chapter() Chapter
     }
@@ -112,9 +136,11 @@ classDiagram
         +int id
         +int user_id
         +int chapter_id
-        +int parent_id
+        +int parent_id "multi-level"
         +str content
         +bool is_active
+        +bool is_spoiler
+        +likes
         +datetime created_at
         +get_replies() QuerySet
     }
@@ -127,6 +153,46 @@ classDiagram
         +datetime created_at
         +datetime updated_at
         +clean() void
+    }
+
+    class ReadingProgress {
+        +int id
+        +int user_id
+        +int novel_id
+        +int chapter_id
+        +datetime updated_at
+    }
+
+    class Notification {
+        +int id
+        +int recipient_id
+        +str kind
+        +str message
+        +str url
+        +bool is_read
+    }
+
+    class Follow {
+        +int id
+        +int follower_id
+        +int author_id
+    }
+
+    class Report {
+        +int id
+        +int reporter_id
+        +int novel_id
+        +int comment_id
+        +str reason
+        +str status
+    }
+
+    class OutlineItem {
+        +int id
+        +int novel_id
+        +str title
+        +str body
+        +int order
     }
 
     %% ================= Service Layer =================
@@ -157,6 +223,9 @@ classDiagram
     User "1" -- "0..1" Profile : has
     User "1" -- "0..*" Novel : authors
     Category "1" -- "0..*" Novel : categorizes
+    Novel "1" -- "0..*" Tag : tagged
+    Novel "1" *-- "0..*" Volume : has
+    Volume "0..1" -- "0..*" Chapter : groups
     Novel "1" *-- "0..*" Chapter : contains
     Chapter "1" *-- "0..*" Comment : has
     Comment "0..1" -- "0..*" Comment : replies
@@ -167,6 +236,13 @@ classDiagram
 
     User "1" -- "0..*" Rating : rates
     Novel "1" -- "0..*" Rating : rated_by
+
+    User "1" -- "0..*" ReadingProgress : reads
+    Novel "1" -- "0..*" ReadingProgress : tracked_by
+    User "1" -- "0..*" Notification : receives
+    User "1" -- "0..*" Follow : follows
+    User "1" -- "0..*" Report : submits
+    Novel "1" -- "0..*" OutlineItem : planned_by
 
     %% ---- Service / Strategy 關係 ----
     NovelService ..> Novel : operates on

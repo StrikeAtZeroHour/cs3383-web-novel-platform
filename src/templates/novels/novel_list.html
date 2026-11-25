@@ -24,11 +24,34 @@
     </select>
   </div>
   <div class="col-6 col-md-3">
+    <label class="form-label" for="status">{% trans "Status" %}</label>
+    <select class="form-select" id="status" name="status">
+      <option value="">{% trans "Any status" %}</option>
+      <option value="ongoing" {% if selected_status == "ongoing" %}selected{% endif %}>{% trans "Ongoing" %}</option>
+      <option value="completed" {% if selected_status == "completed" %}selected{% endif %}>{% trans "Completed" %}</option>
+    </select>
+  </div>
+  <div class="col-6 col-md-3">
+    <label class="form-label" for="tag">{% trans "Tag" %}</label>
+    <select class="form-select" id="tag" name="tag">
+      <option value="">{% trans "Any tag" %}</option>
+      {% for t in tags %}
+        <option value="{{ t.name }}" {% if selected_tag == t.name %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-2">
+    <label class="form-label" for="min_words">{% trans "Min words" %}</label>
+    <input type="number" min="0" class="form-control" id="min_words" name="min_words" value="{{ min_words }}">
+  </div>
+  <div class="col-6 col-md-3">
     <label class="form-label" for="sort">{% trans "Sort by" %}</label>
     <select class="form-select" id="sort" name="sort">
       <option value="updated" {% if sort == "updated" %}selected{% endif %}>{% trans "Recently updated" %}</option>
       <option value="newest" {% if sort == "newest" %}selected{% endif %}>{% trans "Newest" %}</option>
       <option value="popular" {% if sort == "popular" %}selected{% endif %}>{% trans "Most favorited" %}</option>
+      <option value="views" {% if sort == "views" %}selected{% endif %}>{% trans "Most viewed" %}</option>
+      <option value="rating" {% if sort == "rating" %}selected{% endif %}>{% trans "Top rated" %}</option>
       <option value="title" {% if sort == "title" %}selected{% endif %}>{% trans "Title (A-Z)" %}</option>
     </select>
   </div>

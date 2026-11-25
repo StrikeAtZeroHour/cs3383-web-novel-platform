@@ -41,6 +41,47 @@ class Favorite(models.Model):
         return f'{self.user} -> {self.novel}'
 
 
+class ReadingProgress(models.Model):
+    """Per-user, per-novel reading position (C5). One row per (user, novel).
+
+    Stores which chapter the user last read so the reader page can offer
+    "continue reading". The latest chapter wins on update.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reading_progress',
+        verbose_name=_('User'),
+    )
+    novel = models.ForeignKey(
+        Novel,
+        on_delete=models.CASCADE,
+        related_name='reading_progress',
+        verbose_name=_('Novel'),
+    )
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.CASCADE,
+        related_name='reading_progress',
+        verbose_name=_('Chapter'),
+    )
+    updated_at = models.DateTimeField(_('Updated at'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Reading progress')
+        verbose_name_plural = _('Reading progress')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'novel'],
+                name='unique_progress_per_user_novel',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user} @ {self.novel} -> Ch.{self.chapter.order}'
+
+
 class CommentQuerySet(models.QuerySet):
     def active(self):
         return self.filter(is_active=True)
@@ -79,6 +120,13 @@ class Comment(models.Model):
     )
     content = models.TextField(_('Content'))
     is_active = models.BooleanField(_('Active'), default=True)
+    is_spoiler = models.BooleanField(_('Spoiler'), default=False)
+    likes = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='liked_comments',
+        verbose_name=_('Likes'),
+    )
     created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
 
     objects = CommentQuerySet.as_manager()
@@ -140,3 +188,123 @@ class Rating(models.Model):
         super().clean()
         if self.score is not None and not 1 <= self.score <= 5:
             raise ValidationError({'score': _('Score must be between 1 and 5.')})
+
+
+class Notification(models.Model):
+    """An in-app notification for a user (C17 extension)."""
+
+    class Kind(models.TextChoices):
+        REPLY = 'reply', _('Reply')
+        NEW_CHAPTER = 'new_chapter', _('New chapter')
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name=_('Recipient'),
+    )
+    kind = models.CharField(_('Kind'), max_length=20, choices=Kind.choices)
+    message = models.CharField(_('Message'), max_length=255)
+    url = models.CharField(_('URL'), max_length=255, blank=True)
+    is_read = models.BooleanField(_('Read'), default=False)
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Notification')
+        verbose_name_plural = _('Notifications')
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.recipient}: {self.message}'
+
+
+class Follow(models.Model):
+    """A user follows an author (community extension)."""
+
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='following',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='followers',
+    )
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Follow')
+        verbose_name_plural = _('Follows')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['follower', 'author'],
+                name='unique_follow_per_pair',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.follower} follows {self.author}'
+
+
+class Report(models.Model):
+    """A user-submitted content report (F2 extension / moderation queue)."""
+
+    class Status(models.TextChoices):
+        OPEN = 'open', _('Open')
+        RESOLVED = 'resolved', _('Resolved')
+        REJECTED = 'rejected', _('Rejected')
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reports',
+    )
+    novel = models.ForeignKey(
+        Novel,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='reports',
+    )
+    comment = models.ForeignKey(
+        Comment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='reports',
+    )
+    reason = models.TextField(_('Reason'))
+    status = models.CharField(
+        _('Status'), max_length=20, choices=Status.choices, default=Status.OPEN)
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Report')
+        verbose_name_plural = _('Reports')
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'Report #{self.pk} ({self.status})'
+
+
+class OutlineItem(models.Model):
+    """A planning entry in an author's writing workspace (lightweight)."""
+
+    novel = models.ForeignKey(
+        Novel,
+        on_delete=models.CASCADE,
+        related_name='outline',
+        verbose_name=_('Novel'),
+    )
+    title = models.CharField(_('Title'), max_length=200)
+    body = models.TextField(_('Body'), blank=True)
+    order = models.PositiveIntegerField(_('Order'), default=1)
+
+    class Meta:
+        verbose_name = _('Outline item')
+        verbose_name_plural = _('Outline items')
+        ordering = ['order']
+
+    def __str__(self) -> str:
+        return self.title

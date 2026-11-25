@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Dashboard" %}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{% trans "Author dashboard" %}</h1>
+<div class="table-responsive">
+  <table class="table align-middle bg-white">
+    <thead><tr>
+      <th>{% trans "Title" %}</th>
+      <th>{% trans "Views" %}</th>
+      <th>{% trans "Favorites" %}</th>
+      <th>{% trans "Comments" %}</th>
+      <th>{% trans "Words" %}</th>
+    </tr></thead>
+    <tbody>
+      {% for novel in novels %}
+        <tr>
+          <td><a class="text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a></td>
+          <td>{{ novel.total_views }}</td>
+          <td>{{ novel.favorite_count }}</td>
+          <td>{{ novel.comment_count }}</td>
+          <td>{{ novel.word_count }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-muted">{% trans "No novels yet." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

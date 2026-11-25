@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Outline" %} · {{ novel.title }}{% endblock %}
+{% block content %}
+<a class="text-muted-sm text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a>
+<h1 class="h4 mt-1 mb-3">{% trans "Writing workspace" %}</h1>
+<form method="post" action="{% url 'novels:outline_create' novel.pk %}" class="mb-4">
+  {% csrf_token %}
+  <div class="row g-2">
+    <div class="col-md-4"><input class="form-control" name="title" placeholder="{% trans 'Title' %}" required></div>
+    <div class="col-md-6"><input class="form-control" name="body" placeholder="{% trans 'Notes' %}"></div>
+    <div class="col-md-2 d-grid"><button class="btn btn-accent" type="submit">{% trans "Add" %}</button></div>
+  </div>
+</form>
+<ul class="list-group">
+  {% for item in items %}
+    <li class="list-group-item"><strong>{{ item.order }}. {{ item.title }}</strong>
+      {% if item.body %}<div class="text-muted-sm">{{ item.body }}</div>{% endif %}
+    </li>
+  {% empty %}
+    <li class="list-group-item text-muted">{% trans "No outline items yet." %}</li>
+  {% endfor %}
+</ul>
+{% endblock %}

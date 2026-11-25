@@ -26,11 +26,17 @@ class NovelForm(forms.ModelForm):
 
 
 class ChapterForm(forms.ModelForm):
-    """Create / edit a chapter (E5)."""
+    """Create / edit a chapter (E5), including optional scheduling (C6)."""
 
     class Meta:
         model = Chapter
-        fields = ('title', 'content')
+        fields = ('title', 'content', 'scheduled_at')
         widgets = {
             'content': forms.Textarea(attrs={'rows': 16}),
+            'scheduled_at': forms.DateTimeInput(
+                attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['scheduled_at'].required = False

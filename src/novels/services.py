@@ -6,7 +6,6 @@ messages; all multi-step domain logic lives here.
 """
 
 from django.db import transaction
-from django.db.models import F
 from django.utils import timezone
 
 from .models import Chapter
@@ -67,20 +66,27 @@ class NovelService:
 
         siblings = Chapter.objects.active().filter(novel=novel).exclude(pk=chapter.pk)
 
-        # Park the moved chapter outside the used range.
+        # Park the moved chapter outside the used range so its old slot is free.
         temp_order = max_order + 1000
         Chapter.objects.filter(pk=chapter.pk).update(order=temp_order)
 
+        # `(novel, order)` is unique, so siblings are shifted one row at a time
+        # in an order where the destination slot is already vacated. A single
+        # bulk UPDATE would transiently collide (e.g. [1,2] -> [2,3] hits 2).
         if new_order < old_order:
-            # Chapters between new_order and old_order-1 move down by one.
-            siblings.filter(order__gte=new_order, order__lt=old_order).update(
-                order=F('order') + 1
-            )
+            # Make room by moving the highest affected row down first.
+            affected = siblings.filter(
+                order__gte=new_order, order__lt=old_order
+            ).order_by('-order')
+            for sibling in affected:
+                Chapter.objects.filter(pk=sibling.pk).update(order=sibling.order + 1)
         else:
-            # Chapters between old_order+1 and new_order move up by one.
-            siblings.filter(order__gt=old_order, order__lte=new_order).update(
-                order=F('order') - 1
-            )
+            # Make room by moving the lowest affected row up first.
+            affected = siblings.filter(
+                order__gt=old_order, order__lte=new_order
+            ).order_by('order')
+            for sibling in affected:
+                Chapter.objects.filter(pk=sibling.pk).update(order=sibling.order - 1)
 
         Chapter.objects.filter(pk=chapter.pk).update(order=new_order)
         chapter.order = new_order

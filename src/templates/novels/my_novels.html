@@ -9,7 +9,7 @@
   <a class="btn btn-accent" href="{% url 'novels:novel_create' %}">{% trans "New novel" %}</a>
 </div>
 
-{% if novels %}
+{% if page_obj.object_list %}
   <div class="table-responsive">
     <table class="table align-middle bg-white">
       <thead>
@@ -23,7 +23,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for novel in novels %}
+        {% for novel in page_obj %}
           <tr>
             <td><a class="text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a></td>
             <td>{{ novel.category.label }}</td>
@@ -58,6 +58,7 @@
       </tbody>
     </table>
   </div>
+  {% include "novels/_pagination.html" %}
 {% else %}
   <p class="text-muted">
     {% trans "You have no novels yet." %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Rankings" %}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{% trans "Rankings" %}</h1>
+<ul class="nav nav-pills mb-3">
+  <li class="nav-item"><a class="nav-link {% if mode == 'popular' %}active{% endif %}" href="?mode=popular">{% trans "Most favorited" %}</a></li>
+  <li class="nav-item"><a class="nav-link {% if mode == 'views' %}active{% endif %}" href="?mode=views">{% trans "Most viewed" %}</a></li>
+  <li class="nav-item"><a class="nav-link {% if mode == 'rating' %}active{% endif %}" href="?mode=rating">{% trans "Top rated" %}</a></li>
+  <li class="nav-item"><a class="nav-link {% if mode == 'comments' %}active{% endif %}" href="?mode=comments">{% trans "Most discussed" %}</a></li>
+  <li class="nav-item"><a class="nav-link {% if mode == 'newest' %}active{% endif %}" href="?mode=newest">{% trans "Newest" %}</a></li>
+</ul>
+<ol class="list-group list-group-numbered">
+  {% for novel in novels %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <a class="text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a>
+      <span class="text-muted-sm">{{ novel.author.profile.display_name }}</span>
+    </li>
+  {% empty %}
+    <li class="list-group-item text-muted">{% trans "Nothing to rank yet." %}</li>
+  {% endfor %}
+</ol>
+{% endblock %}

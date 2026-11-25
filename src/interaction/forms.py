@@ -44,8 +44,7 @@ class CommentForm(forms.ModelForm):
         parent = Comment.objects.active().filter(pk=parent_id).first()
         if parent is None:
             raise ValidationError(_('The comment you replied to no longer exists.'))
-        if parent.parent_id is not None:
-            raise ValidationError(_('Only one level of reply is allowed.'))
+        # Multi-level replies are allowed; `parent` just points to the target.
         cleaned['parent'] = parent
         return cleaned
 

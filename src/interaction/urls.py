@@ -25,4 +25,17 @@ urlpatterns = [
 
     # --- Ratings (D7) ---
     path('novels/<int:novel_pk>/rate/', views.rate_novel, name='rate_novel'),
+
+    # --- Comment likes ---
+    path('comments/<int:pk>/like/', views.comment_like_toggle, name='comment_like'),
+
+    # --- Follow ---
+    path('users/<str:username>/follow/', views.follow_toggle, name='follow_toggle'),
+
+    # --- Notifications ---
+    path('notifications/', views.notification_list, name='notifications'),
+    path('notifications/read/', views.notification_read_all, name='notifications_read'),
+
+    # --- Reports ---
+    path('novels/<int:novel_pk>/report/', views.report_create, name='report_create'),
 ]

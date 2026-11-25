@@ -18,8 +18,12 @@
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav me-auto">
         <li class="nav-item"><a class="nav-link" href="{% url 'novels:novel_list' %}">{% trans "Browse" %}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'novels:ranking' %}">{% trans "Rankings" %}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'novels:recent_updates' %}">{% trans "Recent" %}</a></li>
         {% if user.is_authenticated %}
           <li class="nav-item"><a class="nav-link" href="{% url 'novels:my_novels' %}">{% trans "My novels" %}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'novels:dashboard' %}">{% trans "Dashboard" %}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'interaction:notifications' %}">{% trans "Notifications" %}</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'interaction:my_favorites' %}">{% trans "My favorites" %}</a></li>
         {% endif %}
       </ul>

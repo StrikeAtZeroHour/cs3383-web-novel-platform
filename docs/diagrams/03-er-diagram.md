@@ -68,6 +68,7 @@ erDiagram
         varchar nickname "display name"
         varchar avatar "avatar path"
         text bio "biography"
+        boolean email_verified "email verified flag"
         datetime created_at "created"
         datetime updated_at "updated"
     }
@@ -75,6 +76,18 @@ erDiagram
     NOVELS_CATEGORY {
         bigint id "primary key"
         varchar name "english label, unique (UI text via gettext)"
+    }
+
+    NOVELS_TAG {
+        bigint id "primary key"
+        varchar name "tag name, unique"
+    }
+
+    NOVELS_VOLUME {
+        bigint id "primary key"
+        bigint novel_id "FK to novels_novel, not null, on_delete=CASCADE"
+        varchar title "volume title"
+        int order "volume order"
     }
 
     NOVELS_NOVEL {
@@ -86,19 +99,32 @@ erDiagram
         text summary "summary"
         varchar status "ongoing or completed, not null"
         boolean is_published "published flag, not null, default false"
+        int view_count "total views, default 0"
+        int word_count "total words, default 0"
         datetime created_at "created"
         datetime updated_at "updated"
+    }
+
+    NOVELS_NOVEL_TAGS {
+        bigint id "primary key"
+        bigint novel_id "FK to novels_novel"
+        bigint tag_id "FK to novels_tag"
     }
 
     NOVELS_CHAPTER {
         bigint id "primary key"
         bigint novel_id "FK to novels_novel, not null, on_delete=CASCADE"
+        bigint volume_id "FK to novels_volume, nullable, on_delete=SET_NULL"
         varchar title "chapter title, not null"
         text content "chapter body, not null"
         int order "chapter order, not null, unique per novel"
         boolean is_active "soft delete flag, not null"
+        boolean is_draft "draft flag, default false"
+        datetime scheduled_at "scheduled publish time, nullable"
+        int view_count "chapter views, default 0"
+        int word_count "chapter words, default 0"
         datetime created_at "created"
-        datetime published_at "chapter created time, no draft state"
+        datetime published_at "chapter created time"
     }
 
     INTERACTION_FAVORITE {
@@ -112,10 +138,17 @@ erDiagram
         bigint id "primary key"
         bigint user_id "FK to auth_user, not null, on_delete=CASCADE"
         bigint chapter_id "FK to novels_chapter, not null, on_delete=CASCADE"
-        bigint parent_id "FK to interaction_comment, nullable, on_delete=CASCADE, one level reply"
+        bigint parent_id "FK to interaction_comment, nullable, on_delete=CASCADE, multi-level reply"
         text content "comment body, not null"
         boolean is_active "soft delete flag, not null"
+        boolean is_spoiler "spoiler flag, default false"
         datetime created_at "created"
+    }
+
+    INTERACTION_COMMENT_LIKES {
+        bigint id "primary key"
+        bigint comment_id "FK to interaction_comment"
+        bigint user_id "FK to auth_user"
     }
 
     INTERACTION_RATING {
@@ -127,18 +160,72 @@ erDiagram
         datetime updated_at "updated when score changes"
     }
 
+    INTERACTION_READINGPROGRESS {
+        bigint id "primary key"
+        bigint user_id "FK to auth_user, not null, on_delete=CASCADE"
+        bigint novel_id "FK to novels_novel, not null, on_delete=CASCADE"
+        bigint chapter_id "FK to novels_chapter, not null, on_delete=CASCADE"
+        datetime updated_at "last read at"
+    }
+
+    INTERACTION_NOTIFICATION {
+        bigint id "primary key"
+        bigint recipient_id "FK to auth_user, not null, on_delete=CASCADE"
+        varchar kind "reply or new_chapter"
+        varchar message "message text"
+        varchar url "target url"
+        boolean is_read "read flag"
+        datetime created_at "created"
+    }
+
+    INTERACTION_FOLLOW {
+        bigint id "primary key"
+        bigint follower_id "FK to auth_user, not null"
+        bigint author_id "FK to auth_user, not null"
+        datetime created_at "created"
+    }
+
+    INTERACTION_REPORT {
+        bigint id "primary key"
+        bigint reporter_id "FK to auth_user, not null"
+        bigint novel_id "FK to novels_novel, nullable"
+        bigint comment_id "FK to interaction_comment, nullable"
+        text reason "report reason"
+        varchar status "open, resolved or rejected"
+        datetime created_at "created"
+    }
+
+    INTERACTION_OUTLINEITEM {
+        bigint id "primary key"
+        bigint novel_id "FK to novels_novel, not null, on_delete=CASCADE"
+        varchar title "outline title"
+        text body "outline notes"
+        int order "order"
+    }
+
     %% ---- 關係 ----
     AUTH_USER ||--o| ACCOUNTS_PROFILE : "has"
     AUTH_USER ||--o{ NOVELS_NOVEL : "authors"
     NOVELS_CATEGORY ||--o{ NOVELS_NOVEL : "categorizes"
+    NOVELS_NOVEL ||--o{ NOVELS_VOLUME : "has"
+    NOVELS_VOLUME |o--o{ NOVELS_CHAPTER : "groups"
     NOVELS_NOVEL ||--o{ NOVELS_CHAPTER : "contains"
+    NOVELS_NOVEL ||--o{ NOVELS_NOVEL_TAGS : "tagged"
+    NOVELS_TAG ||--o{ NOVELS_NOVEL_TAGS : "labels"
     NOVELS_CHAPTER ||--o{ INTERACTION_COMMENT : "has"
     INTERACTION_COMMENT |o--o{ INTERACTION_COMMENT : "replies"
+    INTERACTION_COMMENT ||--o{ INTERACTION_COMMENT_LIKES : "liked_by"
     AUTH_USER ||--o{ INTERACTION_COMMENT : "writes"
     AUTH_USER ||--o{ INTERACTION_FAVORITE : "saves"
     NOVELS_NOVEL ||--o{ INTERACTION_FAVORITE : "favorited_by"
     AUTH_USER ||--o{ INTERACTION_RATING : "rates"
     NOVELS_NOVEL ||--o{ INTERACTION_RATING : "rated_by"
+    AUTH_USER ||--o{ INTERACTION_READINGPROGRESS : "reads"
+    NOVELS_NOVEL ||--o{ INTERACTION_READINGPROGRESS : "tracked_by"
+    AUTH_USER ||--o{ INTERACTION_NOTIFICATION : "receives"
+    AUTH_USER ||--o{ INTERACTION_FOLLOW : "follows"
+    AUTH_USER ||--o{ INTERACTION_REPORT : "submits"
+    NOVELS_NOVEL ||--o{ INTERACTION_OUTLINEITEM : "planned_by"
 ```
 
 ---
@@ -207,13 +294,27 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `summary` | `text` | | 簡介 |
 | `status` | `varchar(20)` | N, default `ongoing` | 僅 `ongoing` / `completed` 兩值（`choices` 驗證），不允許空字串 |
 | `is_published` | `boolean` | N, default `False` | 作品是否公開曝光（`False` = 未發布／已下架） |
+| `view_count` | `int` | N, default `0` | 作品瀏覽數（v2） |
+| `word_count` | `int` | N, default `0` | 作品總字數（v2） |
 | `created_at` | `datetime` | N, auto_now_add | 建立時間 |
 | `updated_at` | `datetime` | N, auto_now | 更新時間 |
 
 **約束**
 
 - `CHECK(status IN ('ongoing', 'completed'))` — Django `choices` 驗證
+- `tags` — M2M 到 `novels_tag`（經中介表 `novels_novel_tags`）
 - 索引：`author_id`、`category_id`、`is_published`、`-updated_at`
+
+### 4b. `novels_tag` / `novels_volume`（v2）
+
+| 表 | 欄位 | 型別 | 約束 |
+|---|---|---|---|
+| `novels_tag` | `id` | `bigint` | PK |
+| | `name` | `varchar(50)` | U, N |
+| `novels_volume` | `id` | `bigint` | PK |
+| | `novel_id` | `bigint` | FK → `novels_novel`, N, CASCADE |
+| | `title` | `varchar(200)` | N |
+| | `order` | `int` | N, default 1 |
 
 ### 5. `novels_chapter`
 
@@ -225,8 +326,13 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `content` | `text` | N | 正文 |
 | `order` | `int` | N | 章節順序（從 1 起） |
 | `is_active` | `boolean` | N, default `True` | 軟刪除／下架 |
+| `volume_id` | `bigint` | 可空, **FK** → `novels_volume.id`, `on_delete=SET_NULL` | 所屬卷（v2） |
+| `is_draft` | `boolean` | N, default `False` | 草稿（不對讀者顯示，v2） |
+| `scheduled_at` | `datetime` | 可空 | 定時發布時間（讀取時判斷，v2） |
+| `view_count` | `int` | N, default `0` | 章節瀏覽數（v2） |
+| `word_count` | `int` | N, default `0` | 章節字數（`save()` 自動計算，v2） |
 | `created_at` | `datetime` | N, auto_now_add | 建立時間 |
-| `published_at` | `datetime` | 可空 | **章節建立時間**，由 `NovelService.create_chapter()` 寫入 `now()`；章節**沒有草稿狀態**，此欄不是「發布開關」 |
+| `published_at` | `datetime` | N, default now | **章節建立時間**，由 `NovelService.create_chapter()` 寫入 `now()`；可見性由 `is_draft` / `scheduled_at` 另判 |
 
 **約束**
 
@@ -234,6 +340,7 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 - 索引：`(novel_id, order)`（複合索引，供目錄頁排序）
 - **軟刪除不重排**：下架／刪除只把 `is_active=False`，保留原 `order`，避免違反唯一約束
 - **`on_delete=CASCADE` 只在硬刪除時生效**；日常刪除一律軟刪除（見 `agent.md` 的「刪除策略」）
+- 讀者可見由 `ChapterQuerySet.visible()` 統一過濾：`is_active=True and is_draft=False and (scheduled_at is null or <= now)`
 
 ### 6. `interaction_favorite`
 
@@ -255,19 +362,30 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `id` | `bigint` | **PK**, AUTO | 主鍵 |
 | `user_id` | `bigint` | **FK** → `auth_user.id`, N, `on_delete=CASCADE` | 留言者 |
 | `chapter_id` | `bigint` | **FK** → `novels_chapter.id`, N, `on_delete=CASCADE` | 所屬章節 |
-| `parent_id` | `bigint` | **FK** → `interaction_comment.id`, ?, `on_delete=CASCADE` | 父留言（一層回覆） |
+| `parent_id` | `bigint` | **FK** → `interaction_comment.id`, ?, `on_delete=CASCADE` | 父留言（**多層回覆**，v2） |
 | `content` | `text` | N | 留言內容 |
 | `is_active` | `boolean` | N, default `True` | 軟刪除／下架 |
+| `is_spoiler` | `boolean` | N, default `False` | 劇透標記（v2） |
+| `likes` | M2M | `interaction_comment_likes` ↔ `auth_user` | 按讚（v2） |
 | `created_at` | `datetime` | N, auto_now_add | 留言時間 |
 
 **約束**
 
-- 一層回覆：**被回覆的留言本身必須是頂層留言**，即 `parent.parent_id` 必須為 `NULL`
-  - 若 `parent.parent_id IS NOT NULL`（代表它已是一則回覆）→ 拒絕，拋 `ValidationError`
-  - **應用層驗證**（SQLite 的 CHECK 無法跨列檢查），實作位置：`CommentForm.clean()`（對應 G3）
+- 多層回覆（v2 放寬）：`parent` 可指向任何同章節的有效留言，不限層數；`CommentForm.clean()` 只驗證父留言存在（應用層）
 - **軟刪除不觸發 CASCADE**：刪除留言一律 `is_active=False`；`on_delete=CASCADE` 只在呼叫 `obj.delete()` 時生效
-- **父留言被軟刪除時**：子回覆一併設 `is_active=False`（由 view 處理），避免顯示掛在已刪除留言下的孤兒回覆
+- **父留言被軟刪除時**：子回覆一併設 `is_active=False`（由 view 處理）
 - 索引：`chapter_id`、`parent_id`、`(chapter_id, created_at)`
+
+### 8b. v2 新增表（互動/創作輔助）
+
+| 表 | 關鍵欄位 | 約束 |
+|---|---|---|
+| `interaction_readingprogress` | user_id, novel_id, chapter_id, updated_at | **UNIQUE(user_id, novel_id)** — 每用戶每作品一筆 |
+| `interaction_notification` | recipient_id, kind, message, url, is_read, created_at | — |
+| `interaction_follow` | follower_id, author_id, created_at | **UNIQUE(follower_id, author_id)** |
+| `interaction_report` | reporter_id, novel_id(nullable), comment_id(nullable), reason, status, created_at | status ∈ open/resolved/rejected |
+| `interaction_outlineitem` | novel_id, title, body, order | — |
+| `interaction_comment_likes` | comment_id, user_id | M2M 中介表 |
 
 ### 8. `interaction_rating`
 
@@ -301,7 +419,11 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_favorite` | UNIQUE | `(user_id, novel_id)` | DB |
 | `interaction_rating` | UNIQUE | `(user_id, novel_id)` | DB |
 | `interaction_rating` | CHECK | `score BETWEEN 1 AND 5` | 應用層 `clean()` |
-| `interaction_comment` | 應用層 | 僅允許一層回覆 | `CommentForm.clean()` |
+| `interaction_comment` | 應用層 | 父留言須存在且同章節（多層） | `CommentForm.clean()` |
+| `novels_novel_tags` | UNIQUE | `(novel_id, tag_id)` | DB（M2M） |
+| `interaction_readingprogress` | UNIQUE | `(user_id, novel_id)` | DB |
+| `interaction_follow` | UNIQUE | `(follower_id, author_id)` | DB |
+| `interaction_comment_likes` | UNIQUE | `(comment_id, user_id)` | DB（M2M） |
 
 ## 外鍵刪除策略
 
@@ -316,6 +438,14 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `Comment.parent` | `CASCADE` | 父留言刪除 → 回覆一併刪除 |
 | `Favorite.user` / `.novel` | `CASCADE` | 任一側刪除 → 收藏紀錄刪除 |
 | `Rating.user` / `.novel` | `CASCADE` | 任一側刪除 → 評分紀錄刪除 |
+| `Volume.novel` | `CASCADE` | 作品刪除 → 卷一併刪除 |
+| `Chapter.volume` | `SET_NULL` | 卷刪除 → 章節保留，volume 設空 |
+| `ReadingProgress.user/.novel/.chapter` | `CASCADE` | 任一側刪除 → 進度刪除 |
+| `Notification.recipient` | `CASCADE` | 用戶刪除 → 通知刪除 |
+| `Follow.follower/.author` | `CASCADE` | 任一側刪除 → 追蹤刪除 |
+| `Report.reporter` | `CASCADE` | 檢舉者刪除 → 檢舉刪除 |
+| `Report.novel/.comment` | `CASCADE` | 目標刪除 → 檢舉刪除（nullable） |
+| `OutlineItem.novel` | `CASCADE` | 作品刪除 → 大綱刪除 |
 
 ## 索引建議
 
@@ -329,6 +459,9 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_comment` | `(chapter_id, created_at)` | 章節留言分頁（D3、D5） |
 | `interaction_favorite` | `novel_id` | 收藏數統計 |
 | `interaction_rating` | `novel_id` | 平均評分計算 |
+| `interaction_readingprogress` | `(user_id, novel_id)` UNIQUE | 續讀查詢（C5） |
+| `interaction_follow` | `(follower_id, author_id)` UNIQUE | 追蹤查詢 |
+| `novels_chapter` | `scheduled_at` | 定時發布讀取判斷 |
 
 > **B6「最多收藏／最多評論」排序**：以 `annotate(Count())` 聚合計算，prototype 階段資料量小，不需為此另建計數欄位或額外索引。
 
@@ -345,9 +478,18 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `novels_category` | `novels` | `Category` |
 | `novels_novel` | `novels` | `Novel` |
 | `novels_chapter` | `novels` | `Chapter` |
+| `novels_tag` | `novels` | `Tag` |
+| `novels_volume` | `novels` | `Volume` |
+| `novels_novel_tags` | `novels` | (M2M) |
 | `interaction_favorite` | `interaction` | `Favorite` |
 | `interaction_comment` | `interaction` | `Comment` |
+| `interaction_comment_likes` | `interaction` | (M2M) |
 | `interaction_rating` | `interaction` | `Rating` |
+| `interaction_readingprogress` | `interaction` | `ReadingProgress` |
+| `interaction_notification` | `interaction` | `Notification` |
+| `interaction_follow` | `interaction` | `Follow` |
+| `interaction_report` | `interaction` | `Report` |
+| `interaction_outlineitem` | `interaction` | `OutlineItem` |
 
 ---
 

@@ -1,0 +1,8 @@
+# Development / testing tooling. Not imported by application code.
+# - coverage: line coverage measurement + lcov/json/html for the editor.
+# - pytest + pytest-django: test discovery/execution for the VS Code
+#   Testing panel (Python Test Explorer requires pytest for Django).
+-r requirements.txt
+coverage==7.17.5
+pytest==9.2.0
+pytest-django==4.14.0

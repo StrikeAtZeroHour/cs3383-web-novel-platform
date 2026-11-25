@@ -18,6 +18,12 @@
       <div class="novel-cover-placeholder rounded mb-3">{{ novel.title }}</div>
     {% endif %}
 
+    {% if progress %}
+      <a class="btn btn-accent w-100 mb-2" href="{{ progress.chapter.get_absolute_url }}">
+        {% trans "Continue reading" %} · {% trans "Chapter" %} {{ progress.chapter.order }}
+      </a>
+    {% endif %}
+
     {% if user.is_authenticated %}
       <form method="post" action="{% url 'interaction:favorite_toggle' novel.pk %}" class="d-grid mb-2">
         {% csrf_token %}
@@ -31,6 +37,15 @@
       <div class="d-grid gap-2">
         <a class="btn btn-outline-primary" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
         <a class="btn btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit novel" %}</a>
+        <a class="btn btn-outline-secondary" href="{% url 'novels:outline_list' novel.pk %}">{% trans "Outline" %}</a>
+        <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#addVolume">{% trans "Add volume" %}</button>
+        <div class="collapse" id="addVolume">
+          <form method="post" action="{% url 'novels:volume_create' novel.pk %}" class="d-flex gap-1 mt-1">
+            {% csrf_token %}
+            <input class="form-control form-control-sm" name="title" placeholder="{% trans 'Volume title' %}" required>
+            <button class="btn btn-sm btn-outline-primary" type="submit">{% trans "Add" %}</button>
+          </form>
+        </div>
         <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">
           {% csrf_token %}
           <button class="btn btn-outline-dark w-100" type="submit">
@@ -81,7 +96,10 @@
       <div class="mb-4" style="white-space: pre-wrap;">{{ novel.summary }}</div>
     {% endif %}
 
-    <h2 class="h5 mb-3">{% trans "Chapters" %}</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0">{% trans "Chapters" %}</h2>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_toc' novel.pk %}">{% trans "Contents" %}</a>
+    </div>
     {% if chapters %}
       <div class="list-group mb-3">
         {% for chapter in chapters %}
@@ -100,6 +118,12 @@
                   <button class="btn btn-sm btn-outline-secondary" type="submit" title="{% trans 'Move down' %}">↓</button>
                 </form>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_edit' novel.pk chapter.pk %}">{% trans "Edit" %}</a>
+                <form method="post" action="{% url 'novels:chapter_toggle_draft' novel.pk chapter.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-warning" type="submit">
+                    {% if chapter.is_draft %}{% trans "Publish" %}{% else %}{% trans "Draft" %}{% endif %}
+                  </button>
+                </form>
                 <form method="post" action="{% url 'novels:chapter_delete' novel.pk chapter.pk %}"
                       onsubmit="return confirm('{% trans "Delete this chapter?" %}');">
                   {% csrf_token %}
@@ -112,6 +136,17 @@
       </div>
     {% else %}
       <p class="text-muted">{% trans "No chapters yet." %}</p>
+    {% endif %}
+
+    {% if user.is_authenticated and not is_author_or_admin %}
+      <details class="mt-4">
+        <summary class="text-muted-sm">{% trans "Report this novel" %}</summary>
+        <form method="post" action="{% url 'interaction:report_create' novel.pk %}" class="mt-2 d-flex gap-2">
+          {% csrf_token %}
+          <input class="form-control form-control-sm" name="reason" placeholder="{% trans 'Reason' %}" required>
+          <button class="btn btn-sm btn-outline-danger" type="submit">{% trans "Report" %}</button>
+        </form>
+      </details>
     {% endif %}
   </div>
 </div>

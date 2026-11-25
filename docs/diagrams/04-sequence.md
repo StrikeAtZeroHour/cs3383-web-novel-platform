@@ -617,3 +617,91 @@ sequenceDiagram
 
 1. 開 <https://mermaid.live>，貼上任一個 `mermaid` 區塊。
 2. 或安裝 VS Code 擴充 **Markdown Preview Mermaid Support** 直接預覽此檔。
+
+---
+
+# v2 ??:?? / ???????
+
+> ????? v2 ????,???????????????? SD-1~SD-5 ???;SD-3/SD-4 ??????????????/?????????/??/????
+
+## SD-6 ??????(C5)
+
+```mermaid
+sequenceDiagram
+    actor R as Reader (authenticated)
+    participant V as novels:chapter_read
+    participant RP as ReadingProgress
+    participant DB as SQLite
+    R->>V: GET /novels/{pk}/chapters/{order}/
+    V->>DB: ???(visible(): active & !draft & ??)
+    V->>DB: Chapter.view_count + 1
+    V->>RP: update_or_create(user, novel, chapter=??)
+    RP->>DB: INSERT/UPDATE interaction_readingprogress
+    V-->>R: 200 ???
+    Note over R,V: ????????
+    R->>V: GET /novels/{pk}/
+    V->>RP: filter(user, novel).first()
+    V-->>R: ???Continue reading ? Ch.N?
+```
+
+## SD-7 ???? / ????(C6)
+
+```mermaid
+sequenceDiagram
+    actor A as Author
+    participant V as chapter_toggle_draft / chapter_create
+    participant S as NovelService
+    participant DB as SQLite
+    A->>V: POST toggle-draft(???? scheduled_at)
+    V->>V: can_edit(novel, user) ? 403
+    V->>S: ?? is_draft / scheduled_at
+    S->>DB: UPDATE novels_chapter
+    Note over DB: visible() ??:is_draft=False ?(scheduled_at ??<=now)
+    A-->>V: 302 ???
+    Note over A,DB: ??????/??????? 404
+```
+
+## SD-8 ???? + ????(D6 v2)
+
+```mermaid
+sequenceDiagram
+    actor R as Reader
+    participant V as comment_create / comment_like
+    participant F as CommentForm
+    participant DB as SQLite
+    R->>V: POST comment(?? parent_id ????is_spoiler)
+    V->>F: validate
+    F-->>V: parent ????(????)
+    V->>DB: INSERT interaction_comment
+    R->>V: POST /comments/{pk}/like/
+    V->>DB: likes M2M add/remove
+    V-->>R: 302 ????
+```
+
+## SD-9 ???? + ??(v2)
+
+```mermaid
+sequenceDiagram
+    actor R as Reader
+    participant V as follow_toggle
+    participant DB as SQLite
+    R->>V: POST /users/{username}/follow/
+    V->>DB: Follow add/remove(??????)
+    V-->>R: 302 ???
+    Note over DB: ??? Notification ???(kind=reply/new_chapter),
+    Note over DB: ???? /notifications/ ??,???????
+```
+
+## SD-10 ????(F2 v2)
+
+```mermaid
+sequenceDiagram
+    actor R as Reader
+    participant V as report_create
+    participant DB as SQLite
+    R->>V: POST /novels/{pk}/report/ reason
+    V->>V: reason ???
+    V->>DB: INSERT interaction_report(status=open)
+    V-->>R: 302 ???
+    Note over DB: admin ? Django Admin ??/??????
+```

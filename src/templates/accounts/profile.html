@@ -21,21 +21,55 @@
       {% if profile_user.profile.bio %}
         <p class="small" style="white-space: pre-wrap;">{{ profile_user.profile.bio }}</p>
       {% endif %}
-      <p class="text-muted-sm mb-3">
-        {% blocktrans with date=profile_user.date_joined|date:"Y-m" %}Joined {{ date }}{% endblocktrans %}
+      <p class="text-muted-sm mb-2">
+        <span class="me-2">★ {{ follower_count }} {% trans "followers" %}</span>
+        <span>➜ {{ following_count }} {% trans "following" %}</span>
       </p>
       {% if is_self %}
         <a class="btn btn-sm btn-outline-secondary w-100 mb-2" href="{% url 'accounts:profile_edit' %}">{% trans "Edit profile" %}</a>
         <a class="btn btn-sm btn-link w-100" href="{% url 'accounts:password_change' %}">{% trans "Change password" %}</a>
+        {% if not profile_user.profile.email_verified %}
+          <a class="btn btn-sm btn-link w-100" href="{% url 'accounts:verify_email' %}">{% trans "Verify email" %}</a>
+        {% else %}
+          <p class="text-success small mb-0">{% trans "Email verified" %}</p>
+        {% endif %}
+      {% elif user.is_authenticated %}
+        <form method="post" action="{% url 'interaction:follow_toggle' profile_user.username %}" class="d-grid">
+          {% csrf_token %}
+          <button class="btn btn-sm {% if is_following %}btn-outline-secondary{% else %}btn-accent{% endif %}" type="submit">
+            {% if is_following %}{% trans "Unfollow" %}{% else %}{% trans "Follow" %}{% endif %}
+          </button>
+        </form>
       {% endif %}
     </div>
   </div>
 
   <div class="col-12 col-md-9">
-    <h2 class="h5 mb-3">
-      {% if is_self %}{% trans "My published novels" %}{% else %}{% trans "Published novels" %}{% endif %}
-    </h2>
-    {% include "novels/_novel_grid.html" with novels=novels empty_text=_("No published novels yet.") %}
+    {% if is_self %}
+      <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><a class="nav-link {% if tab != 'favorites' %}active{% endif %}" href="?tab=works">{% trans "My novels" %}</a></li>
+        <li class="nav-item"><a class="nav-link {% if tab == 'favorites' %}active{% endif %}" href="?tab=favorites">{% trans "My favorites" %}</a></li>
+      </ul>
+      {% if tab == 'favorites' %}
+        {% if favorites %}
+          <div class="row row-cols-2 row-cols-md-3 g-3">
+            {% for fav in favorites %}
+              <div class="col"><div class="novel-card p-3">
+                <a class="text-decoration-none" href="{{ fav.novel.get_absolute_url }}">{{ fav.novel.title }}</a>
+                <div class="text-muted-sm">{{ fav.novel.author.profile.display_name }}</div>
+              </div></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted">{% trans "No favorites yet." %}</p>
+        {% endif %}
+      {% else %}
+        {% include "novels/_novel_grid.html" with novels=novels empty_text=_("No published novels yet.") %}
+      {% endif %}
+    {% else %}
+      <h2 class="h5 mb-3">{% trans "Published novels" %}</h2>
+      {% include "novels/_novel_grid.html" with novels=novels empty_text=_("No published novels yet.") %}
+    {% endif %}
   </div>
 </div>
 {% endblock %}

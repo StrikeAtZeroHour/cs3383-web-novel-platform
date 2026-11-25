@@ -123,3 +123,80 @@ def rate_novel(request, novel_pk):
 
     messages.success(request, _('Rating saved.'))
     return redirect('novels:novel_detail', pk=novel.pk)
+
+
+# ---------------------------------------------------------------- comment likes / spoilers
+
+@login_required
+@require_POST
+def comment_like_toggle(request, pk):
+    """Toggle a like on a comment (community extension)."""
+    comment = get_object_or_404(Comment, pk=pk)
+    if comment.likes.filter(pk=request.user.pk).exists():
+        comment.likes.remove(request.user)
+    else:
+        comment.likes.add(request.user)
+    return redirect(
+        'novels:chapter_read',
+        novel_pk=comment.chapter.novel_id,
+        order=comment.chapter.order,
+    )
+
+
+# ---------------------------------------------------------------- follow
+
+@login_required
+@require_POST
+def follow_toggle(request, username):
+    """Follow or unfollow an author (community extension)."""
+    from django.contrib.auth.models import User
+    from django.urls import reverse
+
+    from .models import Follow
+
+    target = get_object_or_404(User, username=username)
+    if target.pk == request.user.pk:
+        messages.error(request, _('You cannot follow yourself.'))
+        return redirect('accounts:author_profile', username=username)
+    existing = Follow.objects.filter(follower=request.user, author=target).first()
+    if existing:
+        existing.delete()
+    else:
+        Follow.objects.create(follower=request.user, author=target)
+    return redirect('accounts:author_profile', username=username)
+
+
+# ---------------------------------------------------------------- notifications
+
+@login_required
+def notification_list(request):
+    """List the current user's notifications (C17 extension)."""
+    from .models import Notification
+
+    notifications = request.user.notifications.all()[:100]
+    return render(
+        request, 'interaction/notifications.html', {'notifications': notifications})
+
+
+@login_required
+@require_POST
+def notification_read_all(request):
+    """Mark all of the user's notifications read."""
+    request.user.notifications.update(is_read=True)
+    return redirect('interaction:notifications')
+
+
+# ---------------------------------------------------------------- reports
+
+@login_required
+@require_POST
+def report_create(request, novel_pk):
+    """Submit a content report for a novel (F2 extension)."""
+    from .models import Report
+
+    novel = get_object_or_404(Novel, pk=novel_pk)
+    reason = request.POST.get('reason', '').strip()
+    if reason:
+        Report.objects.create(reporter=request.user, novel=novel, reason=reason)
+        messages.success(request, _('Report submitted.'))
+    return redirect('novels:novel_detail', pk=novel.pk)
