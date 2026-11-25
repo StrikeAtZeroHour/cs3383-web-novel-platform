@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Inkwell" %}{% endblock %}
+
+{% block content %}
+<section class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
+  <h1 class="display-6 mb-2">{% trans "Read and write original novels" %}</h1>
+  <p class="lead mb-4">{% trans "Everyone can publish. Browse free, favorite, comment, and start writing your own story." %}</p>
+  <a class="btn btn-accent" href="{% url 'novels:novel_list' %}">{% trans "Browse novels" %}</a>
+  {% if user.is_authenticated %}
+    <a class="btn btn-outline-secondary" href="{% url 'novels:novel_create' %}">{% trans "Start writing" %}</a>
+  {% else %}
+    <a class="btn btn-outline-secondary" href="{% url 'accounts:register' %}">{% trans "Start writing" %}</a>
+  {% endif %}
+</section>
+
+{% if categories %}
+  <div class="mb-4">
+    {% for category in categories %}
+      <a href="{% url 'novels:novel_list' %}?category={{ category.pk }}" class="btn btn-sm btn-outline-secondary me-1 mb-1">
+        {{ category.label }}
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h5 mb-0">{% trans "Recently updated" %}</h2>
+  <a href="{% url 'novels:novel_list' %}" class="text-muted-sm">{% trans "See all" %}</a>
+</div>
+{% include "novels/_novel_grid.html" with novels=recent empty_text=_("No novels yet. Be the first one!") %}
+
+<div class="d-flex justify-content-between align-items-center mb-2 mt-5">
+  <h2 class="h5 mb-0">{% trans "Most favorited" %}</h2>
+  <a href="{% url 'novels:novel_list' %}?sort=popular" class="text-muted-sm">{% trans "See all" %}</a>
+</div>
+{% include "novels/_novel_grid.html" with novels=popular empty_text=_("No favorites yet.") %}
+{% endblock %}

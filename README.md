@@ -1,0 +1,122 @@
+# Web Novel Platform — 專案說明
+
+讀者／創作者雙端的網路小說平台（CS3383 課程專案），以 Django + SQLite 實作。
+
+## 目錄結構
+
+```
+project 2026/
+├── src/                    ← 所有程式碼都在這裡
+│   ├── config/             專案設定（settings.py、urls.py）
+│   ├── accounts/           使用者、個人資料、權限策略
+│   ├── novels/             作品、章節、NovelService
+│   ├── interaction/        收藏、留言、評分
+│   ├── templates/          HTML 模板（Bootstrap 5）
+│   ├── static/             CSS
+│   ├── manage.py           Django 管理指令入口
+│   └── db.sqlite3          資料庫（不進版控）
+├── docs/diagrams/          UML / ER / Sequence 圖（Mermaid 原始碼 + PNG）
+├── locale/zh_Hant/         i18n 翻譯檔（django.po / django.mo）
+├── .venv/                  Python 虛擬環境
+├── agent.md                需求清單與設計決策
+├── ENVIRONMENT.md          環境版本紀錄
+├── STARTUP.md              啟動指南（詳細）
+└── README.md               本文件
+```
+
+## 快速開始
+
+> 完整說明（含常見問題、試玩路線）見 **[`STARTUP.md`](STARTUP.md)**。
+
+所有 `manage.py` 指令都必須在 `src/` 內執行。
+
+```powershell
+# 1. 啟動虛擬環境（從專案根目錄）
+.\.venv\Scripts\Activate.ps1
+
+# 2. 進入程式碼目錄
+cd src
+
+# 3. 建立資料表
+python manage.py migrate
+
+# 4. 載入示範資料
+python manage.py seed_demo
+
+# 5. 編譯中文翻譯（.mo 不進版控，新環境必做）
+$env:Path += ";..\.venv\Scripts\gettext\bin"
+python manage.py compilemessages
+
+# 6. 啟動開發伺服器
+python manage.py runserver
+```
+
+- 前台：<http://127.0.0.1:8000/>
+- 後台：<http://127.0.0.1:8000/admin/>
+
+### 示範帳號
+
+| 帳號 | 密碼 | 角色 |
+|---|---|---|
+| `admin` | `admin12345` | 超級管理員（可下架內容） |
+| `alice` | `demo12345` | 一般使用者 |
+| `bob` | `demo12345` | 一般使用者 |
+
+### 常用指令
+
+```powershell
+cd src
+python manage.py check                     # 檢查設定
+python manage.py makemigrations            # 產生 migration
+python manage.py test                      # 執行測試
+python manage.py createsuperuser           # 建立管理員
+```
+
+### 翻譯（i18n）
+
+介面文字（含分類名稱）全部由 gettext 翻譯，程式碼與資料庫都不寫中文：
+
+```powershell
+cd src
+$env:Path += ";..\.venv\Scripts\gettext\bin"     # gettext 工具（msgfmt / xgettext）
+..\.venv\Scripts\python.exe manage.py makemessages -l zh_Hant --ignore=".venv/*" --ignore="locale/*"
+# 編輯 ../locale/zh_Hant/LC_MESSAGES/django.po，填入 msgstr
+..\.venv\Scripts\python.exe manage.py compilemessages   # 產生 django.mo
+```
+
+- 翻譯檔：`locale/zh_Hant/LC_MESSAGES/django.po`（**目錄必須是 `zh_Hant`**）。
+- 分類名稱：資料庫只存英文（`Fantasy`），畫面用 `{{ category.label }}` 依介面語言
+  顯示「奇幻」或 `Fantasy`。
+- 作品內容（書名、章節、簡介、留言）是使用者資料，**不翻譯**。
+- 語言切換：導覽列的選單寫入 `django_language` cookie；網站路徑不帶語言前綴。
+
+## 技術棧
+
+| 項目 | 版本 |
+|---|---|
+| Python | 3.14.2 |
+| Django | 5.2.19 |
+| SQLite | 內建於 Python |
+| Pillow | 13.0.0 |
+| gettext | GNU gettext 1.0（mlocati static build） |
+| 前端 | Bootstrap 5（CDN） |
+| i18n | Django i18n + gettext（en / zh-hant） |
+
+詳細版本與相容性說明見 [`ENVIRONMENT.md`](ENVIRONMENT.md)。
+
+## 設計文件
+
+| 文件 | 內容 |
+|---|---|
+| [`STARTUP.md`](STARTUP.md) | **如何啟動**、示範帳號、常見問題 |
+| [`agent.md`](agent.md) | 39 項需求、專案範圍、設計決策 |
+| [`docs/diagrams/01-use-case.md`](docs/diagrams/01-use-case.md) | Use Case 圖（26 個用例） |
+| [`docs/diagrams/02-class-diagram.md`](docs/diagrams/02-class-diagram.md) | UML 類別圖 |
+| [`docs/diagrams/03-er-diagram.md`](docs/diagrams/03-er-diagram.md) | ER 圖（8 張表） |
+| [`docs/diagrams/04-sequence.md`](docs/diagrams/04-sequence.md) | Sequence 圖（5 張） |
+
+## 重要注意事項
+
+- **`opencode.json` 含明文 API key**，已列入 `.gitignore`；上傳 GitHub 前請確認它沒有被追蹤。
+- `db.sqlite3`、`media/`、`*.mo` 都不進版控。
+- 文件（`*.md`、`docs/`）在專案根目錄，程式碼在 `src/`。

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Browse novels" %}{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-3">{% trans "Browse novels" %}</h1>
+
+<form method="get" class="row g-2 mb-4 align-items-end">
+  <div class="col-12 col-md-4">
+    <label class="form-label" for="q">{% trans "Search" %}</label>
+    <input type="search" class="form-control" id="q" name="q" value="{{ query }}"
+           placeholder="{% trans 'Title, summary or author' %}">
+  </div>
+  <div class="col-6 col-md-3">
+    <label class="form-label" for="category">{% trans "Category" %}</label>
+    <select class="form-select" id="category" name="category">
+      <option value="">{% trans "All categories" %}</option>
+      {% for category in categories %}
+        <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>
+          {{ category.label }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-3">
+    <label class="form-label" for="sort">{% trans "Sort by" %}</label>
+    <select class="form-select" id="sort" name="sort">
+      <option value="updated" {% if sort == "updated" %}selected{% endif %}>{% trans "Recently updated" %}</option>
+      <option value="newest" {% if sort == "newest" %}selected{% endif %}>{% trans "Newest" %}</option>
+      <option value="popular" {% if sort == "popular" %}selected{% endif %}>{% trans "Most favorited" %}</option>
+      <option value="title" {% if sort == "title" %}selected{% endif %}>{% trans "Title (A-Z)" %}</option>
+    </select>
+  </div>
+  <div class="col-12 col-md-2">
+    <button class="btn btn-accent w-100" type="submit">{% trans "Filter" %}</button>
+  </div>
+</form>
+
+{% if query %}
+  <p class="text-muted-sm">
+    {% blocktrans count counter=page_obj.paginator.count %}{{ counter }} result for "{{ query }}"{% plural %}{{ counter }} results for "{{ query }}"{% endblocktrans %}
+  </p>
+{% endif %}
+
+{% include "novels/_novel_grid.html" with novels=page_obj empty_text=_("No novels match your filters.") %}
+
+{% if page_obj.has_other_pages %}
+  <nav class="mt-4" aria-label="{% trans 'Pagination' %}">
+    <ul class="pagination justify-content-center">
+      {% if page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?q={{ query }}&category={{ selected_category }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>
+        </li>
+      {% endif %}
+      <li class="page-item disabled">
+        <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      </li>
+      {% if page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?q={{ query }}&category={{ selected_category }}&sort={{ sort }}&page={{ page_obj.next_page_number }}">{% trans "Next" %}</a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+{% endif %}
+{% endblock %}

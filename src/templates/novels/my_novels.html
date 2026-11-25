@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "My novels" %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">{% trans "My novels" %}</h1>
+  <a class="btn btn-accent" href="{% url 'novels:novel_create' %}">{% trans "New novel" %}</a>
+</div>
+
+{% if novels %}
+  <div class="table-responsive">
+    <table class="table align-middle bg-white">
+      <thead>
+        <tr>
+          <th>{% trans "Title" %}</th>
+          <th>{% trans "Category" %}</th>
+          <th>{% trans "Chapters" %}</th>
+          <th>{% trans "Status" %}</th>
+          <th>{% trans "Updated" %}</th>
+          <th class="text-end">{% trans "Actions" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for novel in novels %}
+          <tr>
+            <td><a class="text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a></td>
+            <td>{{ novel.category.label }}</td>
+            <td>{{ novel.chapter_count }}</td>
+            <td>
+              {% if novel.is_published %}
+                <span class="badge text-bg-success">{% trans "Published" %}</span>
+              {% else %}
+                <span class="badge text-bg-secondary">{% trans "Unpublished" %}</span>
+              {% endif %}
+            </td>
+            <td class="text-muted-sm">{{ novel.updated_at|date:"Y-m-d H:i" }}</td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit" %}</a>
+                <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-dark" type="submit">
+                    {% if novel.is_published %}{% trans "Unpublish" %}{% else %}{% trans "Publish" %}{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{% url 'novels:novel_delete' novel.pk %}"
+                      onsubmit="return confirm('{% trans "Delete this novel permanently?" %}');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" type="submit">{% trans "Delete" %}</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-muted">
+    {% trans "You have no novels yet." %}
+    <a href="{% url 'novels:novel_create' %}">{% trans "Create your first novel" %}</a>.
+  </p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ chapter.title }} · {{ novel.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <a class="text-decoration-none text-muted-sm" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a>
+    <h1 class="h4 mt-1 mb-0">{% trans "Chapter" %} {{ chapter.order }}. {{ chapter.title }}</h1>
+  </div>
+  <div class="d-flex gap-2">
+    {% if prev_chapter %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Previous" %}</a>
+    {% endif %}
+    {% if next_chapter %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ next_chapter.get_absolute_url }}">{% trans "Next" %} →</a>
+    {% endif %}
+  </div>
+</div>
+
+<article class="chapter-content mb-5">{{ chapter.content }}</article>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  {% if prev_chapter %}
+    <a class="btn btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Previous chapter" %}</a>
+  {% else %}<span></span>{% endif %}
+  {% if next_chapter %}
+    <a class="btn btn-accent" href="{{ next_chapter.get_absolute_url }}">{% trans "Next chapter" %} →</a>
+  {% else %}<span></span>{% endif %}
+</div>
+
+<hr>
+
+<section id="comments">
+  <h2 class="h5 mb-3">{% trans "Comments" %} ({{ page_obj.paginator.count }})</h2>
+
+  {% if user.is_authenticated %}
+    <form method="post" action="{% url 'interaction:comment_create' novel.pk chapter.order %}" class="mb-4">
+      {% csrf_token %}
+      <label class="form-label visually-hidden" for="new-comment">{% trans "Comment" %}</label>
+      <textarea class="form-control mb-2" id="new-comment" name="content" rows="3"
+                placeholder="{% trans 'Write a comment...' %}"></textarea>
+      <button class="btn btn-sm btn-accent" type="submit">{% trans "Post comment" %}</button>
+    </form>
+  {% else %}
+    <p class="text-muted-sm">
+      <a href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Log in" %}</a>
+      {% trans "to leave a comment." %}
+    </p>
+  {% endif %}
+
+  {% for comment in page_obj %}
+    <div class="mb-3" id="comment-{{ comment.pk }}">
+      <div class="d-flex justify-content-between">
+        <div>
+          <strong>{{ comment.user.profile.display_name }}</strong>
+          <span class="text-muted-sm ms-2">{{ comment.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+        {% if user.is_authenticated and comment.user_id == user.pk or user.is_admin %}
+          <form method="post" action="{% url 'interaction:comment_delete' comment.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
+          </form>
+        {% endif %}
+      </div>
+      <div style="white-space: pre-wrap;">{{ comment.content }}</div>
+
+      {% for reply in comment.replies.all %}
+        {% if reply.is_active %}
+          <div class="comment-replies mt-2" id="comment-{{ reply.pk }}">
+            <div class="d-flex justify-content-between">
+              <div>
+                <strong>{{ reply.user.profile.display_name }}</strong>
+                <span class="text-muted-sm ms-2">{{ reply.created_at|date:"Y-m-d H:i" }}</span>
+              </div>
+              {% if user.is_authenticated and reply.user_id == user.pk or user.is_admin %}
+                <form method="post" action="{% url 'interaction:comment_delete' reply.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
+                </form>
+              {% endif %}
+            </div>
+            <div style="white-space: pre-wrap;">{{ reply.content }}</div>
+          </div>
+        {% endif %}
+      {% endfor %}
+
+      {% if user.is_authenticated %}
+        <details class="mt-2">
+          <summary class="text-muted-sm">{% trans "Reply" %}</summary>
+          <form method="post" action="{% url 'interaction:comment_create' novel.pk chapter.order %}" class="mt-2">
+            {% csrf_token %}
+            <input type="hidden" name="parent_id" value="{{ comment.pk }}">
+            <textarea class="form-control mb-2" name="content" rows="2"
+                      placeholder="{% trans 'Write a reply...' %}"></textarea>
+            <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Post reply" %}</button>
+          </form>
+        </details>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="text-muted">{% trans "No comments yet." %}</p>
+  {% endfor %}
+
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="{% trans 'Comment pagination' %}">
+      <ul class="pagination pagination-sm justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}#comments">{% trans "Previous" %}</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}#comments">{% trans "Next" %}</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+</section>
+{% endblock %}

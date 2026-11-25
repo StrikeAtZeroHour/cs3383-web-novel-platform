@@ -1,0 +1,31 @@
+{% load i18n %}
+{% if novels %}
+  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+    {% for novel in novels %}
+      <div class="col">
+        <div class="novel-card">
+          <a href="{{ novel.get_absolute_url }}" class="text-decoration-none">
+            {% if novel.cover %}
+              <img src="{{ novel.cover.url }}" alt="{{ novel.title }}" class="novel-cover">
+            {% else %}
+              <div class="novel-cover-placeholder">{{ novel.title }}</div>
+            {% endif %}
+          </a>
+          <div class="p-3">
+            <a href="{{ novel.get_absolute_url }}" class="text-decoration-none text-dark">
+              <h3 class="h6 mb-1">{{ novel.title }}</h3>
+            </a>
+            <div class="text-muted-sm mb-1">
+              {{ novel.author.profile.display_name }} · {{ novel.category.label }}
+            </div>
+            <span class="badge text-bg-light">
+              {% if novel.status == "completed" %}{% trans "Completed" %}{% else %}{% trans "Ongoing" %}{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">{{ empty_text }}</p>
+{% endif %}

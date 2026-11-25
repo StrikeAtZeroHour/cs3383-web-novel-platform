@@ -1,0 +1,762 @@
+# Traditional Chinese (zh_Hant) translation of the Inkwell UI.
+# Copyright (C) 2026 CS3383 Project Team
+# This file is distributed under the same license as the PACKAGE package.
+# CS3383 Project Team, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Inkwell 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-11-25 18:39+0800\n"
+"PO-Revision-Date: 2026-11-25 19:00+0800\n"
+"Last-Translator: CS3383 Project Team\n"
+"Language-Team: Chinese (Traditional)\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: .\accounts\forms.py:15
+msgid "Email"
+msgstr "電子郵件"
+
+#: .\accounts\forms.py:17
+msgid "Optional. Never shown publicly."
+msgstr "選填，不會公開顯示。"
+
+#: .\accounts\models.py:32
+msgid "Nickname"
+msgstr "暱稱"
+
+#: .\accounts\models.py:33
+msgid "Bio"
+msgstr "個人簡介"
+
+#: .\accounts\models.py:35
+msgid "Avatar"
+msgstr "頭像"
+
+#: .\accounts\models.py:40 .\interaction\models.py:27
+#: .\interaction\models.py:82 .\interaction\models.py:122 .\novels\models.py:78
+#: .\novels\models.py:138
+msgid "Created at"
+msgstr "建立時間"
+
+#: .\accounts\models.py:41 .\interaction\models.py:123 .\novels\models.py:79
+msgid "Updated at"
+msgstr "更新時間"
+
+#: .\accounts\models.py:44
+msgid "Profile"
+msgstr "個人資料"
+
+#: .\accounts\models.py:45
+msgid "Profiles"
+msgstr "個人資料"
+
+#: .\accounts\views.py:25
+msgid "Welcome! Your account has been created."
+msgstr "歡迎！你的帳號已建立完成。"
+
+#: .\accounts\views.py:67
+msgid "Profile updated."
+msgstr "個人資料已更新。"
+
+#: .\config\settings.py:114
+msgid "English"
+msgstr "English"
+
+#: .\config\settings.py:115
+msgid "Traditional Chinese"
+msgstr "繁體中文"
+
+#: .\interaction\admin.py:27 .\interaction\models.py:80 .\novels\models.py:135
+msgid "Content"
+msgstr "內容"
+
+#: .\interaction\admin.py:31
+msgid "Takedown selected comments (hide)"
+msgstr "下架選取的留言（隱藏）"
+
+#: .\interaction\admin.py:34
+#, python-format
+msgid "%(count)s comment(s) hidden."
+msgstr "已隱藏 %(count)s 則留言。"
+
+#: .\interaction\admin.py:36
+msgid "Restore selected comments"
+msgstr "恢復選取的留言"
+
+#: .\interaction\admin.py:39
+#, python-format
+msgid "%(count)s comment(s) restored."
+msgstr "已恢復 %(count)s 則留言。"
+
+#: .\interaction\forms.py:27 .\templates\novels\chapter_read.html:43
+msgid "Write a comment..."
+msgstr "寫下你的留言……"
+
+#: .\interaction\forms.py:34
+msgid "Comment cannot be empty."
+msgstr "留言不能是空白。"
+
+#: .\interaction\forms.py:46
+msgid "The comment you replied to no longer exists."
+msgstr "你回覆的留言已不存在。"
+
+#: .\interaction\forms.py:48
+msgid "Only one level of reply is allowed."
+msgstr "只允許一層回覆。"
+
+#: .\interaction\forms.py:56 .\interaction\models.py:119
+msgid "Score"
+msgstr "評分"
+
+#: .\interaction\models.py:19 .\interaction\models.py:64
+#: .\interaction\models.py:110
+msgid "User"
+msgstr "使用者"
+
+#: .\interaction\models.py:25 .\interaction\models.py:116 .\novels\models.py:84
+#: .\novels\models.py:132
+msgid "Novel"
+msgstr "作品"
+
+#: .\interaction\models.py:30
+msgid "Favorite"
+msgstr "收藏"
+
+#: .\interaction\models.py:31
+msgid "Favorites"
+msgstr "收藏"
+
+#: .\interaction\models.py:70 .\novels\models.py:148
+#: .\templates\novels\chapter_form.html:4
+#: .\templates\novels\chapter_form.html:11
+#: .\templates\novels\chapter_read.html:10
+#: .\templates\novels\novel_detail.html:90
+msgid "Chapter"
+msgstr "章節"
+
+#: .\interaction\models.py:78
+msgid "Reply to"
+msgstr "回覆對象"
+
+#: .\interaction\models.py:81 .\novels\models.py:137
+msgid "Active"
+msgstr "顯示中"
+
+#: .\interaction\models.py:87 .\templates\novels\chapter_read.html:41
+msgid "Comment"
+msgstr "留言"
+
+#: .\interaction\models.py:88 .\templates\novels\chapter_read.html:36
+msgid "Comments"
+msgstr "留言"
+
+#: .\interaction\models.py:126
+msgid "Rating"
+msgstr "評分"
+
+#: .\interaction\models.py:127
+msgid "Ratings"
+msgstr "評分"
+
+#: .\interaction\models.py:142 .\interaction\views.py:111
+msgid "Score must be between 1 and 5."
+msgstr "評分必須介於 1 到 5 之間。"
+
+#: .\interaction\views.py:27 .\interaction\views.py:107 .\novels\views.py:92
+#: .\novels\views.py:121
+msgid "Novel not found."
+msgstr "找不到這部作品。"
+
+#: .\interaction\views.py:32
+msgid "Removed from favorites."
+msgstr "已取消收藏。"
+
+#: .\interaction\views.py:35
+msgid "Added to favorites."
+msgstr "已加入收藏。"
+
+#: .\interaction\views.py:67
+msgid "Comment posted."
+msgstr "留言已發表。"
+
+#: .\interaction\views.py:72
+msgid "Please check your comment and try again."
+msgstr "請檢查留言內容後再試一次。"
+
+#: .\interaction\views.py:83
+msgid "You are not allowed to delete this comment."
+msgstr "你沒有權限刪除這則留言。"
+
+#: .\interaction\views.py:90
+msgid "Comment deleted."
+msgstr "留言已刪除。"
+
+#: .\interaction\views.py:124
+msgid "Rating saved."
+msgstr "評分已儲存。"
+
+#: .\novels\admin.py:15 .\novels\models.py:85
+msgid "Novels"
+msgstr "作品"
+
+#: .\novels\admin.py:41
+msgid "Takedown selected novels (unpublish)"
+msgstr "下架選取的作品（取消發布）"
+
+#: .\novels\admin.py:47
+#, python-format
+msgid "%(count)s novel(s) taken down."
+msgstr "已下架 %(count)s 部作品。"
+
+#: .\novels\admin.py:49
+msgid "Restore selected novels (publish)"
+msgstr "恢復選取的作品（重新發布）"
+
+#: .\novels\admin.py:55
+#, python-format
+msgid "%(count)s novel(s) restored."
+msgstr "已恢復 %(count)s 部作品。"
+
+#: .\novels\admin.py:66
+msgid "Takedown selected chapters (hide)"
+msgstr "下架選取的章節（隱藏）"
+
+#: .\novels\admin.py:69
+#, python-format
+msgid "%(count)s chapter(s) hidden."
+msgstr "已隱藏 %(count)s 個章節。"
+
+#: .\novels\admin.py:71
+msgid "Restore selected chapters"
+msgstr "恢復選取的章節"
+
+#: .\novels\admin.py:74
+#, python-format
+msgid "%(count)s chapter(s) restored."
+msgstr "已恢復 %(count)s 個章節。"
+
+#: .\novels\forms.py:25
+msgid "Select a category"
+msgstr "請選擇分類"
+
+#: .\novels\management\commands\seed_demo.py:21
+#: .\novels\management\commands\seed_demo.py:33
+msgid "Fantasy"
+msgstr "奇幻"
+
+#: .\novels\management\commands\seed_demo.py:22
+#: .\novels\management\commands\seed_demo.py:44
+msgid "Science Fiction"
+msgstr "科幻"
+
+#: .\novels\management\commands\seed_demo.py:23
+#: .\novels\management\commands\seed_demo.py:54
+msgid "Mystery"
+msgstr "懸疑"
+
+#: .\novels\management\commands\seed_demo.py:24
+msgid "Romance"
+msgstr "愛情"
+
+#: .\novels\management\commands\seed_demo.py:25
+msgid "Urban"
+msgstr "都市"
+
+#: .\novels\management\commands\seed_demo.py:26
+msgid "Historical"
+msgstr "歷史"
+
+#: .\novels\models.py:21
+msgid "Name"
+msgstr "名稱"
+
+#: .\novels\models.py:24 .\novels\models.py:61
+#: .\templates\novels\my_novels.html:18 .\templates\novels\novel_list.html:16
+msgid "Category"
+msgstr "分類"
+
+#: .\novels\models.py:25
+msgid "Categories"
+msgstr "分類"
+
+#: .\novels\models.py:48 .\templates\novels\_novel_grid.html:22
+#: .\templates\novels\novel_detail.html:57
+msgid "Ongoing"
+msgstr "連載中"
+
+#: .\novels\models.py:49 .\templates\novels\_novel_grid.html:22
+#: .\templates\novels\novel_detail.html:57
+msgid "Completed"
+msgstr "已完結"
+
+#: .\novels\models.py:55
+msgid "Author"
+msgstr "作者"
+
+#: .\novels\models.py:63 .\templates\novels\my_novels.html:17
+msgid "Title"
+msgstr "標題"
+
+#: .\novels\models.py:65
+msgid "Cover"
+msgstr "封面"
+
+#: .\novels\models.py:70
+msgid "Summary"
+msgstr "簡介"
+
+#: .\novels\models.py:72 .\templates\novels\my_novels.html:20
+msgid "Status"
+msgstr "狀態"
+
+#: .\novels\models.py:77 .\templates\novels\my_novels.html:33
+msgid "Published"
+msgstr "已發布"
+
+#: .\novels\models.py:134
+msgid "Chapter title"
+msgstr "章節標題"
+
+#: .\novels\models.py:136
+msgid "Order"
+msgstr "順序"
+
+#: .\novels\models.py:140
+msgid "Published at"
+msgstr "建立時間"
+
+#: .\novels\models.py:142
+msgid "Creation time. Chapters have no draft state."
+msgstr "章節建立時間。章節沒有草稿狀態。"
+
+#: .\novels\models.py:149 .\templates\novels\my_novels.html:19
+#: .\templates\novels\novel_detail.html:84
+msgid "Chapters"
+msgstr "章節"
+
+#: .\novels\views.py:172
+msgid "Novel created. Publish it when ready."
+msgstr "作品已建立，準備好之後即可發布。"
+
+#: .\novels\views.py:185 .\novels\views.py:239 .\novels\views.py:262
+#: .\novels\views.py:288 .\novels\views.py:302
+msgid "You are not allowed to edit this novel."
+msgstr "你沒有權限編輯這部作品。"
+
+#: .\novels\views.py:191
+msgid "Novel updated."
+msgstr "作品已更新。"
+
+#: .\novels\views.py:207
+msgid "You are not allowed to delete this novel."
+msgstr "你沒有權限刪除這部作品。"
+
+#: .\novels\views.py:210
+msgid "Novel deleted."
+msgstr "作品已刪除。"
+
+#: .\novels\views.py:220
+msgid "You are not allowed to publish this novel."
+msgstr "你沒有權限發布這部作品。"
+
+#: .\novels\views.py:224
+msgid "Novel unpublished."
+msgstr "作品已取消發布。"
+
+#: .\novels\views.py:227
+msgid "Novel published."
+msgstr "作品已發布。"
+
+#: .\novels\views.py:249
+msgid "Chapter added."
+msgstr "章節已新增。"
+
+#: .\novels\views.py:270
+msgid "Chapter updated."
+msgstr "章節已更新。"
+
+#: .\novels\views.py:292
+msgid "Chapter deleted."
+msgstr "章節已刪除。"
+
+#: .\novels\views.py:314
+msgid "Chapter order updated."
+msgstr "章節順序已更新。"
+
+#: .\templates\accounts\login.html:4 .\templates\accounts\login.html:9
+#: .\templates\accounts\login.html:29 .\templates\accounts\register.html:29
+#: .\templates\base.html:39 .\templates\novels\chapter_read.html:48
+msgid "Log in"
+msgstr "登入"
+
+#: .\templates\accounts\login.html:18
+msgid "Username"
+msgstr "使用者名稱"
+
+#: .\templates\accounts\login.html:22
+msgid "Password"
+msgstr "密碼"
+
+#: .\templates\accounts\login.html:26
+msgid "Please enter a correct username and password."
+msgstr "請輸入正確的使用者名稱與密碼。"
+
+#: .\templates\accounts\login.html:32
+msgid "No account yet?"
+msgstr "還沒有帳號？"
+
+#: .\templates\accounts\login.html:33 .\templates\accounts\register.html:4
+#: .\templates\accounts\register.html:25 .\templates\base.html:40
+msgid "Sign up"
+msgstr "註冊"
+
+#: .\templates\accounts\password_change.html:4
+#: .\templates\accounts\password_change.html:9
+#: .\templates\accounts\password_change.html:25
+#: .\templates\accounts\password_change_done.html:4
+#: .\templates\accounts\password_change_done.html:9
+#: .\templates\accounts\profile.html:29
+msgid "Change password"
+msgstr "修改密碼"
+
+#: .\templates\accounts\password_change.html:26
+#: .\templates\accounts\profile_edit.html:25
+#: .\templates\novels\chapter_form.html:32
+#: .\templates\novels\novel_form.html:29
+msgid "Cancel"
+msgstr "取消"
+
+#: .\templates\accounts\password_change_done.html:10
+msgid "Your password has been changed."
+msgstr "你的密碼已變更。"
+
+#: .\templates\accounts\password_change_done.html:11
+msgid "Back to profile"
+msgstr "回到個人資料"
+
+#: .\templates\accounts\profile.html:25
+#, python-format
+msgid "Joined %(date)s"
+msgstr "%(date)s 加入"
+
+#: .\templates\accounts\profile.html:28
+#: .\templates\accounts\profile_edit.html:4
+#: .\templates\accounts\profile_edit.html:9
+msgid "Edit profile"
+msgstr "編輯個人資料"
+
+#: .\templates\accounts\profile.html:36
+msgid "My published novels"
+msgstr "我發布的作品"
+
+#: .\templates\accounts\profile.html:36
+msgid "Published novels"
+msgstr "已發布作品"
+
+#: .\templates\accounts\profile.html:38
+msgid "No published novels yet."
+msgstr "還沒有發布任何作品。"
+
+#: .\templates\accounts\profile_edit.html:24
+#: .\templates\novels\novel_detail.html:76
+#: .\templates\novels\novel_form.html:28
+msgid "Save"
+msgstr "儲存"
+
+#: .\templates\accounts\register.html:9
+msgid "Create an account"
+msgstr "建立帳號"
+
+#: .\templates\accounts\register.html:28
+msgid "Already have an account?"
+msgstr "已經有帳號了？"
+
+#: .\templates\base.html:6 .\templates\base.html:13
+msgid "Inkwell"
+msgstr "Inkwell"
+
+#: .\templates\base.html:15
+msgid "Toggle navigation"
+msgstr "切換導覽列"
+
+#: .\templates\base.html:20
+msgid "Browse"
+msgstr "瀏覽作品"
+
+#: .\templates\base.html:22 .\templates\novels\my_novels.html:4
+#: .\templates\novels\my_novels.html:8
+msgid "My novels"
+msgstr "我的作品"
+
+#: .\templates\base.html:23
+msgid "My favorites"
+msgstr "我的收藏"
+
+#: .\templates\base.html:30
+msgid "Admin"
+msgstr "管理後台"
+
+#: .\templates\base.html:35
+msgid "Log out"
+msgstr "登出"
+
+#: .\templates\base.html:47
+msgid "Language"
+msgstr "語言"
+
+#: .\templates\base.html:67
+msgid "Close"
+msgstr "關閉"
+
+#: .\templates\base.html:77
+msgid "Inkwell — a web novel platform"
+msgstr "Inkwell — 網路小說平台"
+
+#: .\templates\novels\chapter_form.html:14
+msgid "Edit chapter"
+msgstr "編輯章節"
+
+#: .\templates\novels\chapter_form.html:14 .\templates\novels\my_novels.html:41
+#: .\templates\novels\novel_detail.html:32
+msgid "Add chapter"
+msgstr "新增章節"
+
+#: .\templates\novels\chapter_form.html:31
+msgid "Save chapter"
+msgstr "儲存章節"
+
+#: .\templates\novels\chapter_read.html:14
+#: .\templates\novels\chapter_read.html:110
+#: .\templates\novels\novel_list.html:53
+msgid "Previous"
+msgstr "上一頁"
+
+#: .\templates\novels\chapter_read.html:17
+#: .\templates\novels\chapter_read.html:114
+#: .\templates\novels\novel_list.html:61
+msgid "Next"
+msgstr "下一頁"
+
+#: .\templates\novels\chapter_read.html:26
+msgid "Previous chapter"
+msgstr "上一章"
+
+#: .\templates\novels\chapter_read.html:29
+msgid "Next chapter"
+msgstr "下一章"
+
+#: .\templates\novels\chapter_read.html:44
+msgid "Post comment"
+msgstr "發表留言"
+
+#: .\templates\novels\chapter_read.html:49
+msgid "to leave a comment."
+msgstr "即可留言。"
+
+#: .\templates\novels\chapter_read.html:63
+#: .\templates\novels\chapter_read.html:80 .\templates\novels\my_novels.html:52
+#: .\templates\novels\novel_detail.html:106
+msgid "Delete"
+msgstr "刪除"
+
+#: .\templates\novels\chapter_read.html:91
+msgid "Reply"
+msgstr "回覆"
+
+#: .\templates\novels\chapter_read.html:96
+msgid "Write a reply..."
+msgstr "寫下你的回覆……"
+
+#: .\templates\novels\chapter_read.html:97
+msgid "Post reply"
+msgstr "發表回覆"
+
+#: .\templates\novels\chapter_read.html:103
+msgid "No comments yet."
+msgstr "還沒有留言。"
+
+#: .\templates\novels\chapter_read.html:107
+msgid "Comment pagination"
+msgstr "留言分頁"
+
+#: .\templates\novels\my_novels.html:9 .\templates\novels\novel_form.html:4
+#: .\templates\novels\novel_form.html:9
+msgid "New novel"
+msgstr "新增作品"
+
+#: .\templates\novels\my_novels.html:21 .\templates\novels\novel_detail.html:64
+msgid "Updated"
+msgstr "更新於"
+
+#: .\templates\novels\my_novels.html:22
+msgid "Actions"
+msgstr "操作"
+
+#: .\templates\novels\my_novels.html:35
+msgid "Unpublished"
+msgstr "未發布"
+
+#: .\templates\novels\my_novels.html:42
+#: .\templates\novels\novel_detail.html:102
+msgid "Edit"
+msgstr "編輯"
+
+#: .\templates\novels\my_novels.html:46 .\templates\novels\novel_detail.html:37
+msgid "Unpublish"
+msgstr "取消發布"
+
+#: .\templates\novels\my_novels.html:46 .\templates\novels\novel_detail.html:37
+msgid "Publish"
+msgstr "發布"
+
+#: .\templates\novels\my_novels.html:50
+msgid "Delete this novel permanently?"
+msgstr "確定要永久刪除這部作品嗎？"
+
+#: .\templates\novels\my_novels.html:63
+msgid "You have no novels yet."
+msgstr "你還沒有任何作品。"
+
+#: .\templates\novels\my_novels.html:64
+msgid "Create your first novel"
+msgstr "建立你的第一部作品"
+
+#: .\templates\novels\novel_detail.html:9
+msgid "This novel is not published yet. Only you and administrators can see it."
+msgstr "這部作品尚未發布。只有你和管理員可以看到。"
+
+#: .\templates\novels\novel_detail.html:25
+msgid "Remove from favorites"
+msgstr "取消收藏"
+
+#: .\templates\novels\novel_detail.html:25
+msgid "Add to favorites"
+msgstr "加入收藏"
+
+#: .\templates\novels\novel_detail.html:33 .\templates\novels\novel_form.html:4
+#: .\templates\novels\novel_form.html:9
+msgid "Edit novel"
+msgstr "編輯作品"
+
+#: .\templates\novels\novel_detail.html:41
+msgid "Delete this novel permanently? This cannot be undone."
+msgstr "確定要永久刪除這部作品嗎？此動作無法復原。"
+
+#: .\templates\novels\novel_detail.html:43
+msgid "Delete novel"
+msgstr "刪除作品"
+
+#: .\templates\novels\novel_detail.html:52
+msgid "by"
+msgstr "作者"
+
+#: .\templates\novels\novel_detail.html:61
+msgid "favorites"
+msgstr "收藏"
+
+#: .\templates\novels\novel_detail.html:62
+msgid "comments"
+msgstr "留言"
+
+#: .\templates\novels\novel_detail.html:70
+msgid "Your rating"
+msgstr "你的評分"
+
+#: .\templates\novels\novel_detail.html:96
+msgid "Move up"
+msgstr "上移"
+
+#: .\templates\novels\novel_detail.html:100
+msgid "Move down"
+msgstr "下移"
+
+#: .\templates\novels\novel_detail.html:104
+msgid "Delete this chapter?"
+msgstr "確定要刪除這個章節嗎？"
+
+#: .\templates\novels\novel_detail.html:114
+msgid "No chapters yet."
+msgstr "還沒有任何章節。"
+
+#: .\templates\novels\novel_list.html:4 .\templates\novels\novel_list.html:7
+msgid "Browse novels"
+msgstr "瀏覽作品"
+
+#: .\templates\novels\novel_list.html:11
+msgid "Search"
+msgstr "搜尋"
+
+#: .\templates\novels\novel_list.html:13
+msgid "Title, summary or author"
+msgstr "標題、簡介或作者"
+
+#: .\templates\novels\novel_list.html:18
+msgid "All categories"
+msgstr "全部分類"
+
+#: .\templates\novels\novel_list.html:27
+msgid "Sort by"
+msgstr "排序方式"
+
+#: .\templates\novels\novel_list.html:29
+msgid "Recently updated"
+msgstr "最近更新"
+
+#: .\templates\novels\novel_list.html:30
+msgid "Newest"
+msgstr "最新建立"
+
+#: .\templates\novels\novel_list.html:31
+msgid "Most favorited"
+msgstr "收藏最多"
+
+#: .\templates\novels\novel_list.html:32
+msgid "Title (A-Z)"
+msgstr "標題（A-Z）"
+
+#: .\templates\novels\novel_list.html:36
+msgid "Filter"
+msgstr "篩選"
+
+#: .\templates\novels\novel_list.html:42
+#, python-format
+msgid "%(counter)s result for \"%(query)s\""
+msgid_plural "%(counter)s results for \"%(query)s\""
+msgstr[0] "%(counter)s 筆結果：\"%(query)s\""
+
+#: .\templates\novels\novel_list.html:46
+msgid "No novels match your filters."
+msgstr "沒有符合條件的作品。"
+
+#: .\templates\novels\novel_list.html:49
+msgid "Pagination"
+msgstr "分頁"
+
+#~ msgid "Remove"
+#~ msgstr "移除"
+
+#~ msgid "You have no favorites yet."
+#~ msgstr "你還沒有收藏任何作品。"
+
+#~ msgid "Read and write original novels"
+#~ msgstr "閱讀與創作原創小說"
+
+#~ msgid "Everyone can publish. Browse free, favorite, comment, and start writing your own story."
+#~ msgstr "誰都可以發布作品。免費瀏覽、收藏、留言，開始寫你自己的故事。"
+
+#~ msgid "Start writing"
+#~ msgstr "開始創作"
+
+#~ msgid "See all"
+#~ msgstr "查看全部"
+
+#~ msgid "No novels yet. Be the first one!"
+#~ msgstr "目前還沒有作品，成為第一個吧！"
+
+#~ msgid "No favorites yet."
+#~ msgstr "目前還沒有收藏。"
