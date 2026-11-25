@@ -38,7 +38,7 @@
             <td class="text-muted-sm">{{ novel.updated_at|date:"Y-m-d H:i" }}</td>
             <td class="text-end">
               <div class="d-flex gap-1 justify-content-end">
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit" %}</a>
                 <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">
                   {% csrf_token %}

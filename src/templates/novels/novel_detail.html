@@ -45,8 +45,8 @@
 
       {% if is_author_or_admin %}
         <hr>
+        <a class="btn btn-accent w-100 mb-2" href="{% url 'novels:chapter_create' novel.pk %}">＋ {% trans "Add chapter" %}</a>
         <div class="d-grid gap-2">
-          <a class="btn btn-sm btn-accent" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit novel" %}</a>
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:outline_list' novel.pk %}">{% trans "Outline" %}</a>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#addVolume">{% trans "Add volume" %}</button>
@@ -54,7 +54,7 @@
             <form method="post" action="{% url 'novels:volume_create' novel.pk %}" class="d-flex gap-1 mt-1">
               {% csrf_token %}
               <input class="form-control form-control-sm" name="title" placeholder="{% trans 'Volume title' %}" required>
-              <button class="btn btn-sm btn-outline-primary" type="submit">{% trans "Add" %}</button>
+              <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Add" %}</button>
             </form>
           </div>
           <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">

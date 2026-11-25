@@ -1,6 +1,6 @@
 {% load i18n %}
 {% if novels %}
-  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-md-4">
+  <div class="row {{ cols|default:'row-cols-2 row-cols-md-3 row-cols-lg-4' }} g-3 g-md-4">
     {% for novel in novels %}
       <div class="col">
         <div class="novel-card d-flex flex-column">
@@ -10,7 +10,7 @@
             {% else %}
               <div class="novel-cover-placeholder">{{ novel.title }}</div>
             {% endif %}
-            <span class="status-badge position-absolute top-0 start-0 m-2 {% if novel.status == 'completed' %}text-bg-success{% else %}text-bg-dark{% endif %}">
+            <span class="status-badge status-{{ novel.status }} position-absolute top-0 start-0 m-2">
               {% if novel.status == "completed" %}{% trans "Completed" %}{% else %}{% trans "Ongoing" %}{% endif %}
             </span>
           </a>

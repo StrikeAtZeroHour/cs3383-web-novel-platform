@@ -37,13 +37,13 @@
       <h2>{% trans "Recently updated" %}</h2>
       <a href="{% url 'novels:novel_list' %}" class="text-muted-sm">{% trans "See all" %}</a>
     </div>
-    {% include "novels/_novel_grid.html" with novels=recent empty_text=_("No novels yet. Be the first one!") %}
+    {% include "novels/_novel_grid.html" with novels=recent cols="row-cols-2 row-cols-md-2 row-cols-lg-2" empty_text=_("No novels yet. Be the first one!") %}
 
     <div class="section-head">
       <h2>{% trans "Most favorited" %}</h2>
       <a href="{% url 'novels:novel_list' %}?sort=popular" class="text-muted-sm">{% trans "See all" %}</a>
     </div>
-    {% include "novels/_novel_grid.html" with novels=popular empty_text=_("No favorites yet.") %}
+    {% include "novels/_novel_grid.html" with novels=popular cols="row-cols-2 row-cols-md-2 row-cols-lg-2" empty_text=_("No favorites yet.") %}
   </div>
 
   <aside class="col-lg-4">

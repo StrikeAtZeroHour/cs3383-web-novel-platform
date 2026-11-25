@@ -15,16 +15,24 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
   --shadow-md: 0 6px 24px rgba(31,35,40,.08);
   --radius: 0.9rem;
+  --radius-sm: 0.5rem;
+  --border: 1px solid var(--line);
+  --focus: 0 0 0 3px rgba(139,94,60,.45);
+  /* spacing scale */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  /* type scale */
+  --text-xs: .75rem; --text-sm: .875rem; --text-base: 1rem; --text-lg: 1.25rem; --text-xl: 1.5rem; --text-2xl: 2rem;
   --serif: 'Noto Serif TC', Georgia, serif;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
   --reader-font: var(--serif);
   --reader-size: 1.0625rem;
-  --reader-line: 1.9;
+  --reader-line: 1.75;
+  --line-length: 38rem;
 }
 
 [data-theme="dark"] {
   --ink: #e6e6e6;
-  --muted: #9aa0a6;
+  --muted: #b6bcc4;
   --line: #2c3137;
   --accent: #c99a69;
   --accent-strong: #d9ab7d;
@@ -125,8 +133,12 @@ footer.app-footer { flex-shrink: 0; border-top: 1px solid var(--line); color: va
 .chapter-content {
   white-space: pre-wrap; font-family: var(--reader-font);
   line-height: var(--reader-line); font-size: var(--reader-size);
-  max-width: 42rem; margin-inline: auto;
+  max-width: var(--line-length); margin-inline: auto;
 }
+/* reader column wrapper removes the repeated inline widths */
+.reader-col { max-width: var(--line-length); margin-inline: auto; }
+.reader-col h1 { font-family: var(--reader-font); }
+.reader-toolbar { position: sticky; top: 4.25rem; }
 .reader-progress { height: 3px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .reader-progress > span { display: block; height: 100%; width: 0; background: var(--accent); }
 
@@ -153,3 +165,40 @@ footer.app-footer { flex-shrink: 0; border-top: 1px solid var(--line); color: va
 
 .empty-state { text-align: center; color: var(--muted); padding: 3rem 1rem; }
 .empty-state .emoji { font-size: 2.5rem; display: block; margin-bottom: .5rem; }
+
+/* ---- status badges (C-02): token-based, readable in both themes ---- */
+.status-ongoing { background: var(--accent); color: #fff; }
+.status-completed { background: #2f6f4f; color: #fff; }
+
+/* ---- visible focus (accessibility): never remove outlines ---- */
+a:focus-visible, button:focus-visible, .btn:focus-visible,
+.form-control:focus-visible, .form-select:focus-visible,
+.chip:focus-visible, .icon-btn:focus-visible {
+  outline: none; box-shadow: var(--focus); border-radius: var(--radius-sm);
+}
+
+/* ---- touch targets (K-03): comment like/delete ---- */
+.tap { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---- small-screen card density (V-02) ---- */
+@media (max-width: 575.98px) {
+  .novel-card .card-title { font-size: .9rem; }
+  .status-badge { font-size: .65rem; padding: .15rem .45rem; }
+}
+
+/* ---- K-02 fallback: style raw Django widgets without touching forms.py ---- */
+.surface-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.surface-card select,
+.surface-card textarea {
+  width: 100%; padding: .5rem .75rem; border: 1px solid var(--line);
+  border-radius: .5rem; background: var(--surface); color: var(--ink);
+  font: inherit; margin-bottom: .25rem;
+}
+.surface-card input:focus, .surface-card select:focus, .surface-card textarea:focus {
+  border-color: var(--accent); box-shadow: var(--focus); outline: none;
+}
+
+/* ---- card affordance (F-02) ---- */
+.novel-card { cursor: pointer; }
+.novel-card .card-title { color: var(--ink); }
+.novel-card:hover .card-title { color: var(--accent); }
