@@ -7,7 +7,7 @@
 <div class="reader-progress reader-col mb-3"><span id="reading-bar"></span></div>
 
 <div class="reader-toolbar">
-  <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_toc' novel.pk %}" title="{% trans 'Contents' %}">☰</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_toc' novel.pk %}" title="{% trans 'Contents' %}" aria-label="{% trans 'Contents' %}"><i class="bi bi-list" aria-hidden="true"></i></a>
   <span class="vr"></span>
   <span class="meta-sm">{% trans "Text" %}</span>
   <div class="btn-group btn-group-sm" role="group" aria-label="{% trans 'Font size' %}">
@@ -22,7 +22,7 @@
     <button class="btn btn-outline-secondary" type="button" data-reader="font-serif">{% trans "Serif" %}</button>
     <button class="btn btn-outline-secondary" type="button" data-reader="font-sans">{% trans "Sans" %}</button>
   </div>
-  <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-reader="theme">◐ {% trans "Theme" %}</button>
+  <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-reader="theme"><i class="bi bi-circle-half" aria-hidden="true"></i> {% trans "Theme" %}</button>
 </div>
 
 <div class="reader-col d-flex justify-content-between align-items-center mb-2">

@@ -2,7 +2,7 @@
 {% load i18n %}
 {% block title %}{% trans "Rankings" %}{% endblock %}
 {% block content %}
-<h1 class="mb-3">🏆 {% trans "Rankings" %}</h1>
+<h1 class="mb-3"><i class="bi bi-trophy" aria-hidden="true"></i> {% trans "Rankings" %}</h1>
 <ul class="nav nav-pills mb-4 gap-1 flex-wrap">
   <li class="nav-item"><a class="nav-link {% if mode == 'popular' %}active{% endif %}" href="?mode=popular">{% trans "Most favorited" %}</a></li>
   <li class="nav-item"><a class="nav-link {% if mode == 'views' %}active{% endif %}" href="?mode=views">{% trans "Most viewed" %}</a></li>

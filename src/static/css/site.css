@@ -5,7 +5,7 @@
 
 :root {
   --ink: #1f2328;
-  --muted: #6b7280;
+  --muted: #5b6470;
   --line: #e5e7eb;
   --accent: #8b5e3c;
   --accent-strong: #6f4a2d;
@@ -202,3 +202,6 @@ a:focus-visible, button:focus-visible, .btn:focus-visible,
 .novel-card { cursor: pointer; }
 .novel-card .card-title { color: var(--ink); }
 .novel-card:hover .card-title { color: var(--accent); }
+
+/* ---- hero secondary text: sits on a gradient, must stay high-contrast ---- */
+.hero-lead { color: var(--ink); opacity: .9; }

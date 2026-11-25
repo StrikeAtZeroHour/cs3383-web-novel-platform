@@ -8,7 +8,7 @@
   <div class="row align-items-center g-4">
     <div class="col-lg-8">
       <h1 class="mb-3">{% trans "Read and write original novels" %}</h1>
-      <p class="lead mb-4 text-muted-sm">{% trans "Everyone can publish. Browse free, favorite, comment, and start writing your own story." %}</p>
+      <p class="lead mb-4 hero-lead">{% trans "Everyone can publish. Browse free, favorite, comment, and start writing your own story." %}</p>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-accent btn-lg" href="{% url 'novels:novel_list' %}">{% trans "Browse novels" %}</a>
         {% if user.is_authenticated %}
@@ -18,7 +18,7 @@
         {% endif %}
       </div>
     </div>
-    <div class="col-lg-4 d-none d-lg-block text-center" style="font-size:5rem;">📖</div>
+    <div class="col-lg-4 d-none d-lg-block text-center" style="font-size:5rem;color:var(--accent);"><i class="bi bi-book-half" aria-hidden="true"></i></div>
   </div>
 </section>
 
@@ -49,7 +49,7 @@
   <aside class="col-lg-4">
     <div class="surface-card p-3 p-md-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h5 mb-0">🏆 {% trans "Trending" %}</h2>
+        <h2 class="h5 mb-0"><i class="bi bi-trophy" aria-hidden="true"></i> {% trans "Trending" %}</h2>
         <a href="{% url 'novels:ranking' %}" class="text-muted-sm">{% trans "Full list" %}</a>
       </div>
       {% for novel in popular|slice:":8" %}
@@ -64,7 +64,7 @@
     </div>
 
     <div class="surface-card p-3 p-md-4 mt-4">
-      <h2 class="h5 mb-2">✍️ {% trans "Become an author" %}</h2>
+      <h2 class="h5 mb-2"><i class="bi bi-pencil-square" aria-hidden="true"></i> {% trans "Become an author" %}</h2>
       <p class="meta-sm">{% trans "Anyone can publish. Create your novel and add chapters in minutes." %}</p>
       <a class="btn btn-accent btn-sm" href="{% if user.is_authenticated %}{% url 'novels:novel_create' %}{% else %}{% url 'accounts:register' %}{% endif %}">
         {% trans "Start writing" %}
