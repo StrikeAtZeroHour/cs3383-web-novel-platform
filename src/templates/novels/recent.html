@@ -2,16 +2,23 @@
 {% load i18n %}
 {% block title %}{% trans "Recent updates" %}{% endblock %}
 {% block content %}
-<h1 class="h3 mb-2">{% trans "Recent updates" %}</h1>
-<p class="text-muted-sm mb-3">{% blocktrans count n=todays_count %}{{ n }} chapter updated today{% plural %}{{ n }} chapters updated today{% endblocktrans %}</p>
-<ul class="list-group">
-  {% for chapter in chapters %}
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      <a class="text-decoration-none" href="{{ chapter.get_absolute_url }}">{{ chapter.novel.title }} · {{ chapter.title }}</a>
-      <span class="text-muted-sm">{{ chapter.created_at|date:"Y-m-d H:i" }}</span>
-    </li>
-  {% empty %}
-    <li class="list-group-item text-muted">{% trans "No updates yet." %}</li>
-  {% endfor %}
-</ul>
+<div class="section-head" style="margin-top:0;">
+  <h1 class="h4 mb-0">🕒 {% trans "Recent updates" %}</h1>
+  <span class="meta-sm">{% blocktrans count n=todays_count %}{{ n }} chapter updated today{% plural %}{{ n }} chapters updated today{% endblocktrans %}</span>
+</div>
+<div class="surface-card p-2 p-md-3">
+  <ul class="list-group list-group-flush">
+    {% for chapter in chapters %}
+      <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+        <a class="text-decoration-none flex-grow-1" href="{{ chapter.get_absolute_url }}">
+          <span class="fw-semibold">{{ chapter.novel.title }}</span>
+          <span class="meta-sm">· {{ chapter.title }}</span>
+        </a>
+        <span class="meta-sm text-nowrap">{{ chapter.created_at|date:"Y-m-d H:i" }}</span>
+      </li>
+    {% empty %}
+      <li class="list-group-item border-0"><div class="empty-state"><span class="emoji">🕒</span>{% trans "No updates yet." %}</div></li>
+    {% endfor %}
+  </ul>
+</div>
 {% endblock %}

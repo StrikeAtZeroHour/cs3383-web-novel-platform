@@ -4,9 +4,12 @@
 {% block title %}{% trans "Browse novels" %}{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-3">{% trans "Browse novels" %}</h1>
+<div class="section-head" style="margin-top:0;">
+  <h1 class="h3 mb-0">{% trans "Browse novels" %}</h1>
+  <button class="btn btn-sm btn-outline-secondary d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#filters" aria-expanded="false" aria-controls="filters">☰ {% trans "Filters" %}</button>
+</div>
 
-<form method="get" class="row g-2 mb-4 align-items-end">
+<form method="get" id="filters" class="row g-2 mb-4 align-items-end collapse d-lg-flex">
   <div class="col-12 col-md-4">
     <label class="form-label" for="q">{% trans "Search" %}</label>
     <input type="search" class="form-control" id="q" name="q" value="{{ query }}"
@@ -60,9 +63,10 @@
   </div>
 </form>
 
-{% if query %}
+{% if query or selected_category or selected_tag or selected_status or min_words %}
   <p class="text-muted-sm">
-    {% blocktrans count counter=page_obj.paginator.count %}{{ counter }} result for "{{ query }}"{% plural %}{{ counter }} results for "{{ query }}"{% endblocktrans %}
+    {% blocktrans count counter=page_obj.paginator.count %}{{ counter }} result{% plural %}{{ counter }} results{% endblocktrans %}
+    {% if query %}· “{{ query }}”{% endif %}
   </p>
 {% endif %}
 
