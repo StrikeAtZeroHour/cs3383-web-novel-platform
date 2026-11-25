@@ -276,6 +276,7 @@ project 2026/
 11. **定時發布無排程器（v2）**：`Chapter.scheduled_at` 只做「讀取時判斷」（`visible()` 過濾 `scheduled_at > now`），不引入 Celery / cron，維持同步 stack；到期與否在每次查詢即時計算。
 12. **環境變數化設定（v2）**：`SECRET_KEY / DEBUG / ALLOWED_HOSTS` 由環境變數讀取；`DEBUG=False` 且無 `DJANGO_SECRET_KEY` 時啟動直接 `ImproperlyConfigured`，避免誤用開發金鑰上線。開發以 `.env`（`.env.example` 為範本）提供。測試工具（coverage / pytest / pytest-django）置於 `requirements-dev.txt`，執行期相依鎖在 `requirements.lock`。
 13. **測試策略（v2）**：Django `TestCase` 為主要 runner（`manage.py test`）；VS Code Testing 面板改用 `pytest + pytest-django`（官方建議的 Django 路徑），兩者皆可跑同一批 187 測試。覆蓋率以 `coverage --branch` 量測，維持 statements/branches 100%。
+14. **UI 設計系統（v2）**：前端維持 Bootstrap 5（CDN）＋一份 `src/static/css/site.css`，以 CSS 變數建立 token（間距/字級/顏色角色/圓角/focus）。深色模式用 `<html data-theme>` + `localStorage`，並在 `<head>` 以 inline script 於繪製前套用避免主題閃爍；閱讀偏好（字級/行距/字體）同樣存瀏覽器端。無障礙硬性要求：正文對比 ≥ 4.5:1（深色 muted 用 `#b6bcc4`）、觸控目標 ≥ 44px、可見 `:focus-visible`。**不引入新前端框架、build step 或圖示字型**（目前圖示用 emoji）。所有變更僅限模板與 `site.css`，不動 views/models/forms/tests，`{% trans %}` 原字串保留。
 
 ## 報告對應（Final_Report_Marking_Scheme.docx）
 

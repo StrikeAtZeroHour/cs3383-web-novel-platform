@@ -128,6 +128,20 @@ $env:Path += ";..\.venv\Scripts\gettext\bin"     # gettext 工具（msgfmt / xge
 
 詳細版本與相容性說明見 [`ENVIRONMENT.md`](ENVIRONMENT.md)。
 
+## UI 設計系統
+
+前端使用 **Bootstrap 5.3.3（CDN）+ 一份自訂樣式 `src/static/css/site.css`**，無 build step、無新依賴。
+
+| 面向 | 做法 |
+|---|---|
+| 設計 token | `site.css` 的 CSS 變數：間距（`--space-*`）、字級（`--text-*`）、顏色角色（`--ink/--muted/--accent/--surface/--line`）、圓角、focus ring |
+| 深色模式 | `<html data-theme="dark">`；偏好存 `localStorage['inkwell-theme']`，`<head>` 內 inline script 於繪製前套用**避免閃爍**；導覽列 ◐ 切換 |
+| 閱讀器 | 工具列可調字級/行距/字體/主題（存 `localStorage['inkwell-reader']`）；頂部閱讀進度條；行高 1.75、欄寬 38rem（約 60–75 字） |
+| 無障礙 | 正文對比 ≥ 4.5:1（深色 `--muted:#b6bcc4`）；留言讚/刪除等觸控目標 ≥ 44×44px；可見 `:focus-visible` outline（不移除） |
+| 元件 | 卡片、狀態徽章（`status-ongoing/completed` token）、chips、排行榜獎牌、`surface-card` 表單、空狀態 |
+
+深色模式的顏色與對比可在瀏覽器 DevTools 量測；閱讀偏好只存在瀏覽器端，不需要後端。
+
 ## 設計文件
 
 | 文件 | 內容 |
@@ -136,8 +150,8 @@ $env:Path += ";..\.venv\Scripts\gettext\bin"     # gettext 工具（msgfmt / xge
 | [`agent.md`](agent.md) | 39 項需求、專案範圍、設計決策 |
 | [`docs/diagrams/01-use-case.md`](docs/diagrams/01-use-case.md) | Use Case 圖（26 個用例） |
 | [`docs/diagrams/02-class-diagram.md`](docs/diagrams/02-class-diagram.md) | UML 類別圖 |
-| [`docs/diagrams/03-er-diagram.md`](docs/diagrams/03-er-diagram.md) | ER 圖（8 張表） |
-| [`docs/diagrams/04-sequence.md`](docs/diagrams/04-sequence.md) | Sequence 圖（5 張） |
+| [`docs/diagrams/03-er-diagram.md`](docs/diagrams/03-er-diagram.md) | ER 圖（含 v2 擴充表） |
+| [`docs/diagrams/04-sequence.md`](docs/diagrams/04-sequence.md) | Sequence 圖（SD-1～SD-10） |
 
 ## 重要注意事項
 
