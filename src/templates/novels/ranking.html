@@ -2,22 +2,35 @@
 {% load i18n %}
 {% block title %}{% trans "Rankings" %}{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">{% trans "Rankings" %}</h1>
-<ul class="nav nav-pills mb-3">
+<h1 class="mb-3">🏆 {% trans "Rankings" %}</h1>
+<ul class="nav nav-pills mb-4 gap-1 flex-wrap">
   <li class="nav-item"><a class="nav-link {% if mode == 'popular' %}active{% endif %}" href="?mode=popular">{% trans "Most favorited" %}</a></li>
   <li class="nav-item"><a class="nav-link {% if mode == 'views' %}active{% endif %}" href="?mode=views">{% trans "Most viewed" %}</a></li>
   <li class="nav-item"><a class="nav-link {% if mode == 'rating' %}active{% endif %}" href="?mode=rating">{% trans "Top rated" %}</a></li>
   <li class="nav-item"><a class="nav-link {% if mode == 'comments' %}active{% endif %}" href="?mode=comments">{% trans "Most discussed" %}</a></li>
   <li class="nav-item"><a class="nav-link {% if mode == 'newest' %}active{% endif %}" href="?mode=newest">{% trans "Newest" %}</a></li>
 </ul>
-<ol class="list-group list-group-numbered">
+<div class="surface-card p-3 p-md-4">
   {% for novel in novels %}
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      <a class="text-decoration-none" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a>
-      <span class="text-muted-sm">{{ novel.author.profile.display_name }}</span>
-    </li>
+    <div class="rank-row">
+      <span class="rank-no">
+        {% if forloop.counter <= 3 %}🥇{% elif forloop.counter == 4 %}🥈{% elif forloop.counter == 5 %}🥉{% endif %}
+        {% if forloop.counter > 3 %}{{ forloop.counter }}{% endif %}
+      </span>
+      {% if novel.cover %}
+        <img src="{{ novel.cover.url }}" alt="" width="40" height="60" class="rounded object-fit-cover d-none d-sm-block">
+      {% endif %}
+      <div class="flex-grow-1">
+        <a href="{{ novel.get_absolute_url }}" class="text-decoration-none fw-semibold">{{ novel.title }}</a>
+        <div class="meta-sm">{{ novel.author.profile.display_name }} · {{ novel.category.label }}</div>
+      </div>
+      <div class="meta-sm text-end d-none d-md-block">
+        <div>❤ {{ novel.favorite_count }}</div>
+        <div>👁 {{ novel.view_count }}</div>
+      </div>
+    </div>
   {% empty %}
-    <li class="list-group-item text-muted">{% trans "Nothing to rank yet." %}</li>
+    <div class="empty-state"><span class="emoji">🏆</span>{% trans "Nothing to rank yet." %}</div>
   {% endfor %}
-</ol>
+</div>
 {% endblock %}

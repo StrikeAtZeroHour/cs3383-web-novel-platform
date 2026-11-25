@@ -5,128 +5,142 @@
 
 {% block content %}
 {% if not novel.is_published %}
-  <div class="alert alert-warning">
-    {% trans "This novel is not published yet. Only you and administrators can see it." %}
-  </div>
+  <div class="alert alert-warning">{% trans "This novel is not published yet. Only you and administrators can see it." %}</div>
 {% endif %}
 
 <div class="row g-4">
-  <div class="col-12 col-md-4 col-lg-3">
-    {% if novel.cover %}
-      <img src="{{ novel.cover.url }}" alt="{{ novel.title }}" class="novel-cover rounded mb-3">
-    {% else %}
-      <div class="novel-cover-placeholder rounded mb-3">{{ novel.title }}</div>
-    {% endif %}
+  <aside class="col-12 col-md-4 col-lg-3">
+    <div class="surface-card p-3 sticky-lg-top" style="top:5rem;">
+      {% if novel.cover %}
+        <img src="{{ novel.cover.url }}" alt="{{ novel.title }}" class="novel-cover rounded mb-3">
+      {% else %}
+        <div class="novel-cover-placeholder rounded mb-3">{{ novel.title }}</div>
+      {% endif %}
 
-    {% if progress %}
-      <a class="btn btn-accent w-100 mb-2" href="{{ progress.chapter.get_absolute_url }}">
-        {% trans "Continue reading" %} · {% trans "Chapter" %} {{ progress.chapter.order }}
-      </a>
-    {% endif %}
+      {% if progress %}
+        <a class="btn btn-accent w-100 mb-2" href="{{ progress.chapter.get_absolute_url }}">
+          ▶ {% trans "Continue reading" %} · {% trans "Chapter" %} {{ progress.chapter.order }}
+        </a>
+      {% elif chapters %}
+        <a class="btn btn-accent w-100 mb-2" href="{{ chapters.0.get_absolute_url }}">
+          ▶ {% trans "Start reading" %}
+        </a>
+      {% endif %}
 
-    {% if user.is_authenticated %}
-      <form method="post" action="{% url 'interaction:favorite_toggle' novel.pk %}" class="d-grid mb-2">
-        {% csrf_token %}
-        <button class="btn {% if is_favorited %}btn-outline-secondary{% else %}btn-accent{% endif %}" type="submit">
-          {% if is_favorited %}{% trans "Remove from favorites" %}{% else %}{% trans "Add to favorites" %}{% endif %}
-        </button>
-      </form>
-    {% endif %}
-
-    {% if is_author_or_admin %}
-      <div class="d-grid gap-2">
-        <a class="btn btn-outline-primary" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
-        <a class="btn btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit novel" %}</a>
-        <a class="btn btn-outline-secondary" href="{% url 'novels:outline_list' novel.pk %}">{% trans "Outline" %}</a>
-        <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#addVolume">{% trans "Add volume" %}</button>
-        <div class="collapse" id="addVolume">
-          <form method="post" action="{% url 'novels:volume_create' novel.pk %}" class="d-flex gap-1 mt-1">
-            {% csrf_token %}
-            <input class="form-control form-control-sm" name="title" placeholder="{% trans 'Volume title' %}" required>
-            <button class="btn btn-sm btn-outline-primary" type="submit">{% trans "Add" %}</button>
-          </form>
-        </div>
-        <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'interaction:favorite_toggle' novel.pk %}" class="d-grid mb-2">
           {% csrf_token %}
-          <button class="btn btn-outline-dark w-100" type="submit">
-            {% if novel.is_published %}{% trans "Unpublish" %}{% else %}{% trans "Publish" %}{% endif %}
+          <button class="btn {% if is_favorited %}btn-outline-secondary{% else %}btn-outline-dark{% endif %}" type="submit">
+            {% if is_favorited %}★ {% trans "Favorited" %}{% else %}☆ {% trans "Add to favorites" %}{% endif %}
           </button>
         </form>
-        <form method="post" action="{% url 'novels:novel_delete' novel.pk %}"
-              onsubmit="return confirm('{% trans "Delete this novel permanently? This cannot be undone." %}');">
-          {% csrf_token %}
-          <button class="btn btn-outline-danger w-100" type="submit">{% trans "Delete novel" %}</button>
-        </form>
+      {% endif %}
+
+      <div class="meta-sm d-flex justify-content-between px-1 mb-2">
+        <span>❤ {{ favorite_count }}</span>
+        <span>💬 {{ comment_count }}</span>
+        <span>👁 {{ novel.view_count }}</span>
+        <span>★ {% if avg_score %}{{ avg_score|floatformat:1 }}{% else %}–{% endif %}</span>
       </div>
-    {% endif %}
-  </div>
+
+      {% if is_author_or_admin %}
+        <hr>
+        <div class="d-grid gap-2">
+          <a class="btn btn-sm btn-accent" href="{% url 'novels:chapter_create' novel.pk %}">{% trans "Add chapter" %}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:novel_edit' novel.pk %}">{% trans "Edit novel" %}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:outline_list' novel.pk %}">{% trans "Outline" %}</a>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#addVolume">{% trans "Add volume" %}</button>
+          <div class="collapse" id="addVolume">
+            <form method="post" action="{% url 'novels:volume_create' novel.pk %}" class="d-flex gap-1 mt-1">
+              {% csrf_token %}
+              <input class="form-control form-control-sm" name="title" placeholder="{% trans 'Volume title' %}" required>
+              <button class="btn btn-sm btn-outline-primary" type="submit">{% trans "Add" %}</button>
+            </form>
+          </div>
+          <form method="post" action="{% url 'novels:novel_publish' novel.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-dark w-100" type="submit">
+              {% if novel.is_published %}{% trans "Unpublish" %}{% else %}{% trans "Publish" %}{% endif %}
+            </button>
+          </form>
+          <form method="post" action="{% url 'novels:novel_delete' novel.pk %}"
+                onsubmit="return confirm('{% trans "Delete this novel permanently? This cannot be undone." %}');">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger w-100" type="submit">{% trans "Delete novel" %}</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </aside>
 
   <div class="col-12 col-md-8 col-lg-9">
-    <h1 class="h2">{{ novel.title }}</h1>
-    <p class="text-muted mb-2">
-      {% trans "by" %}
-      <a href="{% url 'accounts:author_profile' novel.author.username %}" class="text-decoration-none">
-        {{ novel.author.profile.display_name }}
-      </a>
-      · <a href="{% url 'novels:novel_list' %}?category={{ novel.category.pk }}" class="text-decoration-none">{{ novel.category.label }}</a>
-      · {% if novel.status == "completed" %}{% trans "Completed" %}{% else %}{% trans "Ongoing" %}{% endif %}
-    </p>
-
-    <div class="mb-3 text-muted-sm">
-      <span>❤ {{ favorite_count }} {% trans "favorites" %}</span>
-      <span class="ms-3">💬 {{ comment_count }} {% trans "comments" %}</span>
-      <span class="ms-3">★ {% if avg_score %}{{ avg_score|floatformat:1 }}{% else %}–{% endif %} ({{ rating_count }})</span>
-      <span class="ms-3">{% trans "Updated" %} {{ novel.updated_at|date:"Y-m-d" }}</span>
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+      <div>
+        <h1 class="mb-1">{{ novel.title }}</h1>
+        <p class="meta-sm mb-2">
+          {% trans "by" %}
+          <a href="{% url 'accounts:author_profile' novel.author.username %}" class="text-decoration-none fw-semibold">{{ novel.author.profile.display_name }}</a>
+          · <a href="{% url 'novels:novel_list' %}?category={{ novel.category.pk }}" class="text-decoration-none">{{ novel.category.label }}</a>
+          · <span class="status-badge {% if novel.status == 'completed' %}text-bg-success{% else %}text-bg-dark{% endif %}">
+              {% if novel.status == "completed" %}{% trans "Completed" %}{% else %}{% trans "Ongoing" %}{% endif %}
+            </span>
+        </p>
+      </div>
     </div>
+
+    {% if novel.tags.all %}
+      <div class="mb-3 d-flex flex-wrap gap-1">
+        {% for tag in novel.tags.all %}
+          <a class="chip py-1 px-2" href="{% url 'novels:novel_list' %}?tag={{ tag.name }}">#{{ tag.name }}</a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if novel.summary %}
+      <div class="surface-card p-3 p-md-4 mb-4" style="white-space: pre-wrap;">{{ novel.summary }}</div>
+    {% endif %}
 
     {% if user.is_authenticated %}
       <form method="post" action="{% url 'interaction:rate_novel' novel.pk %}" class="d-flex align-items-center gap-2 mb-4">
         {% csrf_token %}
-        <label class="form-label mb-0 text-muted-sm" for="score">{% trans "Your rating" %}</label>
+        <label class="form-label mb-0 meta-sm" for="score">{% trans "Your rating" %}</label>
         <select class="form-select form-select-sm w-auto" id="score" name="score">
           {% for value in "12345" %}
-            <option value="{{ value }}" {% if user_rating.score|stringformat:"s" == value %}selected{% endif %}>{{ value }}</option>
+            <option value="{{ value }}" {% if user_rating.score|stringformat:"s" == value %}selected{% endif %}>{{ value }} ★</option>
           {% endfor %}
         </select>
         <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Save" %}</button>
       </form>
     {% endif %}
 
-    {% if novel.summary %}
-      <div class="mb-4" style="white-space: pre-wrap;">{{ novel.summary }}</div>
-    {% endif %}
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h2 class="h5 mb-0">{% trans "Chapters" %}</h2>
+    <div class="section-head" style="margin-top:0;">
+      <h2>{% trans "Chapters" %} <span class="meta-sm">({{ chapters|length }})</span></h2>
       <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_toc' novel.pk %}">{% trans "Contents" %}</a>
     </div>
     {% if chapters %}
       <div class="list-group mb-3">
         {% for chapter in chapters %}
-          <div class="list-group-item d-flex justify-content-between align-items-center">
-            <a href="{{ chapter.get_absolute_url }}" class="text-decoration-none">
-              {% trans "Chapter" %} {{ chapter.order }}. {{ chapter.title }}
+          <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <a href="{{ chapter.get_absolute_url }}" class="text-decoration-none flex-grow-1">
+              <span class="meta-sm">{{ chapter.order }}.</span> {{ chapter.title }}
+              {% if chapter.is_draft %}<span class="badge text-bg-warning ms-1">{% trans "Draft" %}</span>{% endif %}
             </a>
             {% if is_author_or_admin %}
               <div class="d-flex gap-1">
-                <form method="post" action="{% url 'novels:chapter_reorder' novel.pk chapter.pk 'up' %}">
-                  {% csrf_token %}
+                <form method="post" action="{% url 'novels:chapter_reorder' novel.pk chapter.pk 'up' %}">{% csrf_token %}
                   <button class="btn btn-sm btn-outline-secondary" type="submit" title="{% trans 'Move up' %}">↑</button>
                 </form>
-                <form method="post" action="{% url 'novels:chapter_reorder' novel.pk chapter.pk 'down' %}">
-                  {% csrf_token %}
+                <form method="post" action="{% url 'novels:chapter_reorder' novel.pk chapter.pk 'down' %}">{% csrf_token %}
                   <button class="btn btn-sm btn-outline-secondary" type="submit" title="{% trans 'Move down' %}">↓</button>
                 </form>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_edit' novel.pk chapter.pk %}">{% trans "Edit" %}</a>
-                <form method="post" action="{% url 'novels:chapter_toggle_draft' novel.pk chapter.pk %}">
-                  {% csrf_token %}
+                <form method="post" action="{% url 'novels:chapter_toggle_draft' novel.pk chapter.pk %}">{% csrf_token %}
                   <button class="btn btn-sm btn-outline-warning" type="submit">
                     {% if chapter.is_draft %}{% trans "Publish" %}{% else %}{% trans "Draft" %}{% endif %}
                   </button>
                 </form>
                 <form method="post" action="{% url 'novels:chapter_delete' novel.pk chapter.pk %}"
-                      onsubmit="return confirm('{% trans "Delete this chapter?" %}');">
-                  {% csrf_token %}
+                      onsubmit="return confirm('{% trans "Delete this chapter?" %}');">{% csrf_token %}
                   <button class="btn btn-sm btn-outline-danger" type="submit">{% trans "Delete" %}</button>
                 </form>
               </div>
@@ -135,12 +149,12 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="text-muted">{% trans "No chapters yet." %}</p>
+      <div class="empty-state"><span class="emoji">📝</span>{% trans "No chapters yet." %}</div>
     {% endif %}
 
     {% if user.is_authenticated and not is_author_or_admin %}
       <details class="mt-4">
-        <summary class="text-muted-sm">{% trans "Report this novel" %}</summary>
+        <summary class="meta-sm">⚑ {% trans "Report this novel" %}</summary>
         <form method="post" action="{% url 'interaction:report_create' novel.pk %}" class="mt-2 d-flex gap-2">
           {% csrf_token %}
           <input class="form-control form-control-sm" name="reason" placeholder="{% trans 'Reason' %}" required>

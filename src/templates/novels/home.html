@@ -4,36 +4,72 @@
 {% block title %}{% trans "Inkwell" %}{% endblock %}
 
 {% block content %}
-<section class="p-4 p-md-5 mb-4 rounded-3 bg-body-tertiary">
-  <h1 class="display-6 mb-2">{% trans "Read and write original novels" %}</h1>
-  <p class="lead mb-4">{% trans "Everyone can publish. Browse free, favorite, comment, and start writing your own story." %}</p>
-  <a class="btn btn-accent" href="{% url 'novels:novel_list' %}">{% trans "Browse novels" %}</a>
-  {% if user.is_authenticated %}
-    <a class="btn btn-outline-secondary" href="{% url 'novels:novel_create' %}">{% trans "Start writing" %}</a>
-  {% else %}
-    <a class="btn btn-outline-secondary" href="{% url 'accounts:register' %}">{% trans "Start writing" %}</a>
-  {% endif %}
+<section class="hero p-4 p-md-5 mb-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-8">
+      <h1 class="mb-3">{% trans "Read and write original novels" %}</h1>
+      <p class="lead mb-4 text-muted-sm">{% trans "Everyone can publish. Browse free, favorite, comment, and start writing your own story." %}</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-accent btn-lg" href="{% url 'novels:novel_list' %}">{% trans "Browse novels" %}</a>
+        {% if user.is_authenticated %}
+          <a class="btn btn-outline-secondary btn-lg" href="{% url 'novels:novel_create' %}">{% trans "Start writing" %}</a>
+        {% else %}
+          <a class="btn btn-outline-secondary btn-lg" href="{% url 'accounts:register' %}">{% trans "Start writing" %}</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-lg-4 d-none d-lg-block text-center" style="font-size:5rem;">📖</div>
+  </div>
 </section>
 
 {% if categories %}
-  <div class="mb-4">
+  <div class="mb-4 d-flex flex-wrap gap-2">
+    <a href="{% url 'novels:novel_list' %}" class="chip active">{% trans "All" %}</a>
     {% for category in categories %}
-      <a href="{% url 'novels:novel_list' %}?category={{ category.pk }}" class="btn btn-sm btn-outline-secondary me-1 mb-1">
-        {{ category.label }}
-      </a>
+      <a href="{% url 'novels:novel_list' %}?category={{ category.pk }}" class="chip">{{ category.label }}</a>
     {% endfor %}
   </div>
 {% endif %}
 
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <h2 class="h5 mb-0">{% trans "Recently updated" %}</h2>
-  <a href="{% url 'novels:novel_list' %}" class="text-muted-sm">{% trans "See all" %}</a>
-</div>
-{% include "novels/_novel_grid.html" with novels=recent empty_text=_("No novels yet. Be the first one!") %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="section-head">
+      <h2>{% trans "Recently updated" %}</h2>
+      <a href="{% url 'novels:novel_list' %}" class="text-muted-sm">{% trans "See all" %}</a>
+    </div>
+    {% include "novels/_novel_grid.html" with novels=recent empty_text=_("No novels yet. Be the first one!") %}
 
-<div class="d-flex justify-content-between align-items-center mb-2 mt-5">
-  <h2 class="h5 mb-0">{% trans "Most favorited" %}</h2>
-  <a href="{% url 'novels:novel_list' %}?sort=popular" class="text-muted-sm">{% trans "See all" %}</a>
+    <div class="section-head">
+      <h2>{% trans "Most favorited" %}</h2>
+      <a href="{% url 'novels:novel_list' %}?sort=popular" class="text-muted-sm">{% trans "See all" %}</a>
+    </div>
+    {% include "novels/_novel_grid.html" with novels=popular empty_text=_("No favorites yet.") %}
+  </div>
+
+  <aside class="col-lg-4">
+    <div class="surface-card p-3 p-md-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">🏆 {% trans "Trending" %}</h2>
+        <a href="{% url 'novels:ranking' %}" class="text-muted-sm">{% trans "Full list" %}</a>
+      </div>
+      {% for novel in popular|slice:":8" %}
+        <div class="rank-row">
+          <span class="rank-no">{{ forloop.counter }}</span>
+          <a href="{{ novel.get_absolute_url }}" class="text-decoration-none flex-grow-1">{{ novel.title }}</a>
+          <span class="meta-sm">{{ novel.author.profile.display_name }}</span>
+        </div>
+      {% empty %}
+        <p class="meta-sm mb-0">{% trans "No rankings yet." %}</p>
+      {% endfor %}
+    </div>
+
+    <div class="surface-card p-3 p-md-4 mt-4">
+      <h2 class="h5 mb-2">✍️ {% trans "Become an author" %}</h2>
+      <p class="meta-sm">{% trans "Anyone can publish. Create your novel and add chapters in minutes." %}</p>
+      <a class="btn btn-accent btn-sm" href="{% if user.is_authenticated %}{% url 'novels:novel_create' %}{% else %}{% url 'accounts:register' %}{% endif %}">
+        {% trans "Start writing" %}
+      </a>
+    </div>
+  </aside>
 </div>
-{% include "novels/_novel_grid.html" with novels=popular empty_text=_("No favorites yet.") %}
 {% endblock %}

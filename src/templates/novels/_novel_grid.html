@@ -1,31 +1,42 @@
 {% load i18n %}
 {% if novels %}
-  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-md-4">
     {% for novel in novels %}
       <div class="col">
-        <div class="novel-card">
-          <a href="{{ novel.get_absolute_url }}" class="text-decoration-none">
+        <div class="novel-card d-flex flex-column">
+          <a href="{{ novel.get_absolute_url }}" class="text-decoration-none position-relative">
             {% if novel.cover %}
               <img src="{{ novel.cover.url }}" alt="{{ novel.title }}" class="novel-cover">
             {% else %}
               <div class="novel-cover-placeholder">{{ novel.title }}</div>
             {% endif %}
-          </a>
-          <div class="p-3">
-            <a href="{{ novel.get_absolute_url }}" class="text-decoration-none text-dark">
-              <h3 class="h6 mb-1">{{ novel.title }}</h3>
-            </a>
-            <div class="text-muted-sm mb-1">
-              {{ novel.author.profile.display_name }} · {{ novel.category.label }}
-            </div>
-            <span class="badge text-bg-light">
+            <span class="status-badge position-absolute top-0 start-0 m-2 {% if novel.status == 'completed' %}text-bg-success{% else %}text-bg-dark{% endif %}">
               {% if novel.status == "completed" %}{% trans "Completed" %}{% else %}{% trans "Ongoing" %}{% endif %}
             </span>
+          </a>
+          <div class="card-body d-flex flex-column">
+            <a href="{{ novel.get_absolute_url }}" class="text-decoration-none card-title d-block mb-1">{{ novel.title }}</a>
+            <div class="meta-sm mb-2">
+              {{ novel.author.profile.display_name }}
+              {% if novel.category %}· {{ novel.category.label }}{% endif %}
+            </div>
+            {% if novel.tags.all %}
+              <div class="mb-2">
+                {% for tag in novel.tags.all|slice:":3" %}
+                  <a class="chip py-0 px-2" style="font-size:.72rem;" href="{% url 'novels:novel_list' %}?tag={{ tag.name }}">#{{ tag.name }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+            <div class="meta-sm mt-auto d-flex gap-3">
+              <span>❤ {{ novel.favorite_count|default:0 }}</span>
+              <span>👁 {{ novel.view_count }}</span>
+              {% if novel.word_count %}<span>{{ novel.word_count }} {% trans "words" %}</span>{% endif %}
+            </div>
           </div>
         </div>
       </div>
     {% endfor %}
   </div>
 {% else %}
-  <p class="text-muted">{{ empty_text }}</p>
+  <div class="empty-state"><span class="emoji">📚</span>{{ empty_text }}</div>
 {% endif %}

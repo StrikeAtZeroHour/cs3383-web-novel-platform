@@ -4,39 +4,52 @@
 {% block title %}{{ chapter.title }} · {{ novel.title }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <a class="text-decoration-none text-muted-sm" href="{{ novel.get_absolute_url }}">{{ novel.title }}</a>
-    <h1 class="h4 mt-1 mb-0">{% trans "Chapter" %} {{ chapter.order }}. {{ chapter.title }}</h1>
+<div class="reader-progress mb-3" style="max-width:42rem;margin-inline:auto;"><span id="reading-bar"></span></div>
+
+<div class="reader-toolbar">
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'novels:chapter_toc' novel.pk %}" title="{% trans 'Contents' %}">☰</a>
+  <span class="vr"></span>
+  <span class="meta-sm">{% trans "Text" %}</span>
+  <div class="btn-group btn-group-sm" role="group" aria-label="{% trans 'Font size' %}">
+    <button class="btn btn-outline-secondary" type="button" data-reader="size-down">A−</button>
+    <button class="btn btn-outline-secondary" type="button" data-reader="size-up">A+</button>
   </div>
+  <div class="btn-group btn-group-sm" role="group" aria-label="{% trans 'Line height' %}">
+    <button class="btn btn-outline-secondary" type="button" data-reader="line-down">≡−</button>
+    <button class="btn btn-outline-secondary" type="button" data-reader="line-up">≡+</button>
+  </div>
+  <div class="btn-group btn-group-sm" role="group" aria-label="{% trans 'Font family' %}">
+    <button class="btn btn-outline-secondary" type="button" data-reader="font-serif">{% trans "Serif" %}</button>
+    <button class="btn btn-outline-secondary" type="button" data-reader="font-sans">{% trans "Sans" %}</button>
+  </div>
+  <button class="btn btn-sm btn-outline-secondary ms-auto" type="button" data-reader="theme">◐ {% trans "Theme" %}</button>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2" style="max-width:42rem;margin-inline:auto;">
+  <a class="meta-sm text-decoration-none" href="{{ novel.get_absolute_url }}">← {{ novel.title }}</a>
   <div class="d-flex gap-2">
-    {% if prev_chapter %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Previous" %}</a>
-    {% endif %}
-    {% if next_chapter %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ next_chapter.get_absolute_url }}">{% trans "Next" %} →</a>
-    {% endif %}
+    {% if prev_chapter %}<a class="btn btn-sm btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Prev" %}</a>{% endif %}
+    {% if next_chapter %}<a class="btn btn-sm btn-outline-secondary" href="{{ next_chapter.get_absolute_url }}">{% trans "Next" %} →</a>{% endif %}
   </div>
 </div>
 
-<article class="chapter-content mb-5">{{ chapter.content }}</article>
+<article class="mb-4" style="max-width:42rem;margin-inline:auto;">
+  <h1 class="h4 mb-3">{% trans "Chapter" %} {{ chapter.order }}. {{ chapter.title }}</h1>
+  <div class="chapter-content" id="chapter-body">{{ chapter.content }}</div>
+</article>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-  {% if prev_chapter %}
-    <a class="btn btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Previous chapter" %}</a>
-  {% else %}<span></span>{% endif %}
-  {% if next_chapter %}
-    <a class="btn btn-accent" href="{{ next_chapter.get_absolute_url }}">{% trans "Next chapter" %} →</a>
-  {% else %}<span></span>{% endif %}
+<div class="d-flex justify-content-between align-items-center mb-4" style="max-width:42rem;margin-inline:auto;">
+  {% if prev_chapter %}<a class="btn btn-outline-secondary" href="{{ prev_chapter.get_absolute_url }}">← {% trans "Previous chapter" %}</a>{% else %}<span></span>{% endif %}
+  {% if next_chapter %}<a class="btn btn-accent" href="{{ next_chapter.get_absolute_url }}">{% trans "Next chapter" %} →</a>{% else %}<span></span>{% endif %}
 </div>
 
-<hr>
+<hr style="max-width:42rem;margin-inline:auto;">
 
-<section id="comments">
-  <h2 class="h5 mb-3">{% trans "Comments" %} ({{ page_obj.paginator.count }})</h2>
+<section id="comments" style="max-width:42rem;margin-inline:auto;">
+  <h2 class="h5 mb-3">💬 {% trans "Comments" %} ({{ page_obj.paginator.count }})</h2>
 
   {% if user.is_authenticated %}
-    <form method="post" action="{% url 'interaction:comment_create' novel.pk chapter.order %}" class="mb-4">
+    <form method="post" action="{% url 'interaction:comment_create' novel.pk chapter.order %}" class="mb-4 surface-card p-3">
       {% csrf_token %}
       <label class="form-label visually-hidden" for="new-comment">{% trans "Comment" %}</label>
       <textarea class="form-control mb-2" id="new-comment" name="content" rows="3"
@@ -44,27 +57,35 @@
       <button class="btn btn-sm btn-accent" type="submit">{% trans "Post comment" %}</button>
     </form>
   {% else %}
-    <p class="text-muted-sm">
-      <a href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Log in" %}</a>
-      {% trans "to leave a comment." %}
+    <p class="meta-sm">
+      <a href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Log in" %}</a> {% trans "to leave a comment." %}
     </p>
   {% endif %}
 
   {% for comment in page_obj %}
-    <div class="mb-3" id="comment-{{ comment.pk }}">
+    <div class="comment-item mb-3" id="comment-{{ comment.pk }}">
       <div class="d-flex justify-content-between">
         <div>
           <strong>{{ comment.user.profile.display_name }}</strong>
-          <span class="text-muted-sm ms-2">{{ comment.created_at|date:"Y-m-d H:i" }}</span>
+          <span class="meta-sm ms-2">{{ comment.created_at|date:"Y-m-d H:i" }}</span>
+          {% if comment.is_spoiler %}<span class="badge text-bg-warning">{% trans "Spoiler" %}</span>{% endif %}
         </div>
-        {% if user.is_authenticated and comment.user_id == user.pk or user.is_admin %}
-          <form method="post" action="{% url 'interaction:comment_delete' comment.pk %}">
-            {% csrf_token %}
-            <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
-          </form>
-        {% endif %}
+        <div class="d-flex gap-2 align-items-center">
+          {% if user.is_authenticated %}
+            <form method="post" action="{% url 'interaction:comment_like' comment.pk %}">{% csrf_token %}
+              <button class="btn btn-sm btn-link p-0 text-decoration-none" type="submit">♥ {{ comment.likes.count }}</button>
+            </form>
+          {% else %}
+            <span class="meta-sm">♥ {{ comment.likes.count }}</span>
+          {% endif %}
+          {% if user.is_authenticated and comment.user_id == user.pk or user.is_admin %}
+            <form method="post" action="{% url 'interaction:comment_delete' comment.pk %}">{% csrf_token %}
+              <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
+            </form>
+          {% endif %}
+        </div>
       </div>
-      <div style="white-space: pre-wrap;">{{ comment.content }}</div>
+      <div class="mt-1" style="white-space: pre-wrap;">{{ comment.content }}</div>
 
       {% for reply in comment.replies.all %}
         {% if reply.is_active %}
@@ -72,14 +93,20 @@
             <div class="d-flex justify-content-between">
               <div>
                 <strong>{{ reply.user.profile.display_name }}</strong>
-                <span class="text-muted-sm ms-2">{{ reply.created_at|date:"Y-m-d H:i" }}</span>
+                <span class="meta-sm ms-2">{{ reply.created_at|date:"Y-m-d H:i" }}</span>
               </div>
-              {% if user.is_authenticated and reply.user_id == user.pk or user.is_admin %}
-                <form method="post" action="{% url 'interaction:comment_delete' reply.pk %}">
-                  {% csrf_token %}
-                  <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
-                </form>
-              {% endif %}
+              <div class="d-flex gap-2 align-items-center">
+                {% if user.is_authenticated %}
+                  <form method="post" action="{% url 'interaction:comment_like' reply.pk %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-link p-0 text-decoration-none" type="submit">♥ {{ reply.likes.count }}</button>
+                  </form>
+                {% endif %}
+                {% if user.is_authenticated and reply.user_id == user.pk or user.is_admin %}
+                  <form method="post" action="{% url 'interaction:comment_delete' reply.pk %}">{% csrf_token %}
+                    <button class="btn btn-sm btn-link text-danger p-0" type="submit">{% trans "Delete" %}</button>
+                  </form>
+                {% endif %}
+              </div>
             </div>
             <div style="white-space: pre-wrap;">{{ reply.content }}</div>
           </div>
@@ -88,19 +115,18 @@
 
       {% if user.is_authenticated %}
         <details class="mt-2">
-          <summary class="text-muted-sm">{% trans "Reply" %}</summary>
+          <summary class="meta-sm">{% trans "Reply" %}</summary>
           <form method="post" action="{% url 'interaction:comment_create' novel.pk chapter.order %}" class="mt-2">
             {% csrf_token %}
             <input type="hidden" name="parent_id" value="{{ comment.pk }}">
-            <textarea class="form-control mb-2" name="content" rows="2"
-                      placeholder="{% trans 'Write a reply...' %}"></textarea>
+            <textarea class="form-control mb-2" name="content" rows="2" placeholder="{% trans 'Write a reply...' %}"></textarea>
             <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Post reply" %}</button>
           </form>
         </details>
       {% endif %}
     </div>
   {% empty %}
-    <p class="text-muted">{% trans "No comments yet." %}</p>
+    <div class="empty-state"><span class="emoji">💬</span>{% trans "No comments yet." %}</div>
   {% endfor %}
 
   {% if page_obj.has_other_pages %}
@@ -117,4 +143,60 @@
     </nav>
   {% endif %}
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var root = document.documentElement;
+    try {
+      var saved = JSON.parse(localStorage.getItem('inkwell-reader') || '{}');
+      if (saved.size) root.style.setProperty('--reader-size', saved.size + 'rem');
+      if (saved.line) root.style.setProperty('--reader-line', saved.line);
+      if (saved.font) root.style.setProperty('--reader-font', saved.font);
+    } catch (e) {}
+    function persist() {
+      var cs = getComputedStyle(root);
+      var data = {
+        size: parseFloat(cs.getPropertyValue('--reader-size')),
+        line: parseFloat(cs.getPropertyValue('--reader-line')),
+        font: cs.getPropertyValue('--reader-font').trim()
+      };
+      try { localStorage.setItem('inkwell-reader', JSON.stringify(data)); } catch (e) {}
+    }
+    function bump(prop, delta, min, max) {
+      var cs = getComputedStyle(root);
+      var v = parseFloat(cs.getPropertyValue(prop)) + delta;
+      v = Math.max(min, Math.min(max, v));
+      root.style.setProperty(prop, v + (prop === '--reader-line' ? '' : 'rem'));
+      persist();
+    }
+    document.querySelectorAll('[data-reader]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        switch (btn.getAttribute('data-reader')) {
+          case 'size-up': bump('--reader-size', 0.0625, 0.85, 1.6); break;
+          case 'size-down': bump('--reader-size', -0.0625, 0.85, 1.6); break;
+          case 'line-up': bump('--reader-line', 0.1, 1.3, 2.4); break;
+          case 'line-down': bump('--reader-line', -0.1, 1.3, 2.4); break;
+          case 'font-serif': root.style.setProperty('--reader-font', "'Noto Serif TC', Georgia, serif"); persist(); break;
+          case 'font-sans': root.style.setProperty('--reader-font', "'Inter', system-ui, sans-serif"); persist(); break;
+          case 'theme':
+            var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-theme', next);
+            try { localStorage.setItem('inkwell-theme', next); } catch (e) {}
+            break;
+        }
+      });
+    });
+    var bar = document.getElementById('reading-bar');
+    function updateBar() {
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      var pct = max > 0 ? (doc.scrollTop / max) * 100 : 0;
+      if (bar) bar.style.width = pct + '%';
+    }
+    window.addEventListener('scroll', updateBar, { passive: true });
+    updateBar();
+  })();
+</script>
 {% endblock %}
