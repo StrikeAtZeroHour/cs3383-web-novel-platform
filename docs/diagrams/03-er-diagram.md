@@ -362,7 +362,7 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `id` | `bigint` | **PK**, AUTO | 主鍵 |
 | `user_id` | `bigint` | **FK** → `auth_user.id`, N, `on_delete=CASCADE` | 留言者 |
 | `chapter_id` | `bigint` | **FK** → `novels_chapter.id`, N, `on_delete=CASCADE` | 所屬章節 |
-| `parent_id` | `bigint` | **FK** → `interaction_comment.id`, ?, `on_delete=CASCADE` | 父留言（**多層回覆**，v2） |
+| `parent_id` | `bigint` | **FK** → `interaction_comment.id`, 可空, `on_delete=CASCADE` | 父留言（**多層回覆**，v2） |
 | `content` | `text` | N | 留言內容 |
 | `is_active` | `boolean` | N, default `True` | 軟刪除／下架 |
 | `is_spoiler` | `boolean` | N, default `False` | 劇透標記（v2） |
@@ -407,7 +407,7 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 
 ## 約束總表
 
-> **驗證方式統一說明**：`Novel.status`（`choices`）、`Rating.score`（`clean()`）、一層回覆（`CommentForm.clean()`）**全部在應用層驗證**，Django 的 `choices` 不會產生 DB CHECK。
+> **驗證方式統一說明**：`Novel.status`（`choices`）、`Rating.score`（`clean()`）、父留言存在性（`CommentForm.clean()`）**全部在應用層驗證**，Django 的 `choices` 不會產生 DB CHECK。
 > 下表的 `CHECK(...)` 是**建議的資料庫規格**（若日後改用 PostgreSQL 可加上），SQLite + Django 預設實作則由 `clean()` / `choices` 保證。
 
 | 表 | 約束類型 | 內容 | 實際實作 |

@@ -194,7 +194,7 @@ flowchart LR
 | Favorite Novel | 收藏／取消收藏（不得重複） | D1 | `Favorite` |
 | View My Favorites | 個人主頁的收藏分頁 | D2 | `Favorite` |
 | Post Comment | 在章節下留言 | D3 | `Comment` |
-| Reply to Comment | 一層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言） | D6 | `Comment` |
+| Reply to Comment | 多層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言，不限層數） | D6 | `Comment` |
 | Delete Own Comment | 本人或 admin 可刪（獨立用例，與「發表」無延伸關係） | D4 | `Comment`、`PermissionStrategy` |
 | Rate Novel 1-5 | 每人每作品一筆，可修改 | D7 | `Rating` |
 
@@ -308,8 +308,8 @@ flowchart LR
 |---|---|---|
 | `Create Novel` | SD-2 | 輸入書名建新書、`author = request.user`、預設 `is_published=False` |
 | `Manage Chapters` | SD-3 | 先驗作品歸屬（`AuthorOrAdminStrategy`）→ `get_next_order()`、軟刪除不重排 `order` |
-| `Favorite Novel` | SD-1 | 收藏／取消收藏 toggle、登入前置、`unique_together` |
-| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm.clean()` 拒絕第二層以上回覆 |
+| `Favorite Novel` | SD-1 | 收藏／取消收藏 toggle、登入前置、`UniqueConstraint` |
+| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm.clean()` 只驗證父留言存在（v2 起不限回覆層數） |
 | `Delete Novel` | SD-5 | `PermissionStrategy` 三分支、硬刪除 CASCADE |
 | `Publish Novel` | SD-2 的「附帶動作：發布」段落 | 經 `NovelService.publish()`、需權限、不檢查章節數（流程僅 2 步，未獨立成圖） |
 
@@ -342,12 +342,12 @@ flowchart LR
 | C2 上一章／下一章 | ✅ | Read Chapter（含導航） | ✅ |
 | C3 章節目錄 | ✅ | Read Chapter（章節頁內含目錄） | ✅ |
 | C4 免登入閱讀 | ✅ | `Guest --> Read Chapter` | ✅ |
-| C5 閱讀進度 | 🟡 | — | ⬜ 未納入（加分項） |
+| C5 閱讀進度 | ✅ | Read Chapter（記錄進度）＋ View Novel Detail（續讀） | ✅ |
 | D1 收藏／取消 | ✅ | Favorite Novel | ✅ |
 | D2 我的收藏 | ✅ | View My Favorites | ✅ |
 | D3 章節評論 | ✅ | Post Comment | ✅ |
 | D4 刪除評論 | ✅ | Delete Own Comment（admin 可刪他人由 Admin 涵蓋） | ✅ |
-| D5 評論分頁 | 🔵 | Post Comment（頁面顯示） | ⚠️ 無獨立用例 |
+| D5 評論分頁 | 🔵 | Post Comment（章節頁 Paginator，每頁 20） | ✅ |
 | D6 評論回覆 | 🔵 | Reply to Comment（generalizes Post Comment） | ✅ |
 | D7 作品評分 | 🔵 | Rate Novel 1-5 | ✅ |
 | E1 我的作品 | ✅ | Manage My Novels | ✅ |
@@ -389,22 +389,21 @@ flowchart LR
 
 ---
 
-## v2 ????(???)
+## v2 擴充（補充）
 
-| ?? | ????? | ?? |
+| 功能 | 實作方式 | 需求 |
 |---|---|---|
-| ???? | ????? | ????????Continue reading? |
-| ????? | ?? / ?? | ??/????/????/????/?? |
-| ?????? | ?? / ?? | ??????????????? |
-| ???/??/???? | ?? / ?? | `novel_list` ???? |
-| ??? | ?? | `Volume` ???? |
-| ?????? / ???? | ?? | `is_draft` / `scheduled_at`(?????) |
-| ??????? | ?? | ??/??/??/???? |
-| ???? | ?? | `OutlineItem` ????? |
-| ???? / ?? / ???? | ????? | `likes` M2M?`is_spoiler`?`parent` ??? |
-| ???? | ????? | `Follow` |
-| ???? | ????? | `Notification`(?????,?????) |
-| Email ?? | ????? | `Profile.email_verified` |
-| ???? | ?? | Django `PasswordResetView` |
-| ?????? | ????? | `Report`;admin ???? |
-| ?? JSON API | ???? | `/api/novels/`?`/api/novels/<pk>/`(??) |
+| 閱讀進度 | `ReadingProgress`（每用戶每作品一筆），詳情頁「Continue reading」 | C5 |
+| 排行榜 / 最近更新 | `/rankings/`（最熱/最多瀏覽/最高評分/最多討論/最新）、`/recent/` | — |
+| 標籤、狀態、字數篩選 | `Tag` M2M + `novel_list` 篩選參數 | — |
+| 卷階層 | `Volume` model + 建立端點 | C4 |
+| 章節草稿 / 定時發布 | `is_draft` / `scheduled_at`（讀取時判斷） | C6 |
+| 章節目錄頁 | `/novels/<pk>/toc/`（依卷分組、錨點） | — |
+| 寫作大綱 | `OutlineItem` + 大綱端點 | — |
+| 多層留言 / 讚 / 劇透 | `likes` M2M、`is_spoiler`、`parent` 不限層數 | — |
+| 追蹤作者 | `Follow` | — |
+| 通知 | `Notification`（資料庫輪詢、非即時推送） | — |
+| Email 驗證 | `Profile.email_verified` | — |
+| 密碼重設 | Django `PasswordResetView` | — |
+| 違規檢舉 | `Report`；admin 於後台處理 | F2 |
+| 只讀 JSON API | `/api/novels/`、`/api/novels/<pk>/`（列表） | — |

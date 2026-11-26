@@ -105,13 +105,6 @@ sequenceDiagram
             M-->>V: favorite
             deactivate M
 
-            V->>M: novel.favorite_set.count()
-            activate M
-            M->>DB: SELECT COUNT(*) FROM interaction_favorite
-            DB-->>M: count
-            M-->>V: count
-            deactivate M
-
             V-->>User: 302 redirect to novel detail
             note over V: flash message "Added to favorites"
         end
@@ -126,15 +119,15 @@ sequenceDiagram
 | **一個 endpoint、兩種行為** | 收藏與取消收藏是**互斥**操作，不需要兩個 URL；由「是否已收藏」決定分支，前端只需一顆按鈕 |
 | 先 `filter().first()` 再決定 | 已收藏時走 `delete()`，未收藏時走 `create()`；兩條路徑都只有一次寫入 |
 | 回傳 `302` 而非 `200` | Post/Redirect/Get 模式，避免使用者重新整理造成重複提交 |
-| **不顯示收藏數的即時更新** | 圖上在「新增收藏」後才重算 `count()`；取消收藏後由詳情頁重新載入即可，不需額外查詢 |
-| `unique_together(user, novel)` | 資料庫層的最後防線：即使併發請求同時通過檢查，唯一約束仍會阻擋重複列 |
+| **不顯示收藏數的即時更新** | 建立或刪除後直接 302 導回詳情頁，由頁面重新載入時計算收藏數，不需額外查詢 |
+| `UniqueConstraint(user, novel)` | 資料庫層的最後防線：即使併發請求同時通過檢查，唯一約束仍會阻擋重複列 |
 
 ### 對應關係
 
 | 圖上元素 | Class 圖 | ER 圖 |
 |---|---|---|
 | `Model`（收藏） | `Favorite` | `interaction_favorite` |
-| `unique_together` | `Favorite.unique_together(user, novel)` | `UNIQUE(user_id, novel_id)` |
+| `UniqueConstraint` | `Favorite.UniqueConstraint(user, novel)` | `UNIQUE(user_id, novel_id)` |
 
 ---
 
@@ -239,7 +232,7 @@ POST /novels/12/publish/
 |---|---|
 | 走 `NovelService.publish()` | 與 Class 圖、SD-3／SD-5 一致：**業務動作放 service，view 只處理 HTTP** |
 | 需要權限檢查 | 只有作者本人或 admin 能發布，否則一般人可發布他人作品 |
-| **不檢查章節數** | `Chapter` 沒有草稿狀態（一建立即公開），因此不能用「有沒有章節」阻擋發布。零章節的作品發布後，詳情頁顯示「暫無章節」（見 `agent.md` 設計決策第 7 條） |
+| **不檢查章節數** | 「有沒有章節」不能作為發布條件。零章節的作品發布後，詳情頁顯示「暫無章節」（見 `agent.md` 設計決策第 7 條）。章節另有 `is_draft` / `scheduled_at` 控制單章可見性，與作品發布無關 |
 
 ### 對應關係
 
@@ -366,7 +359,7 @@ sequenceDiagram
 | `can_edit(novel, user)` 而非 `can_edit(chapter, user)` | 章節沒有 `author` 欄位，作者是透過 `chapter.novel.author` 取得。傳 `novel` 讓策略不必知道物件型別 |
 | 權限通過才呼叫 service | service 只管資料，不管權限（見下方說明）；view 是唯一的守門人 |
 | `get_next_order()` 計算 `order` | 由 model 提供，避免 view 自己寫 `Max('order')` 聚合 |
-| 寫入 `published_at` | 章節**沒有草稿狀態**，一建立即公開；`published_at` 只是章節建立時間，供「最近更新」顯示。作品曝光由 `is_published` 決定（SD-2） |
+| 寫入 `published_at` | 章節建立時由 service 寫入 `now()`；v2 另有 `is_draft` / `scheduled_at` 控制單章可見性，作品曝光仍由 `is_published` 決定（SD-2） |
 | **刪除只改 `is_active`** | 若真正 `DELETE`，留言（`Comment.chapter` CASCADE）會一起消失，使用者無法回溯 |
 | **刪除後不重排 `order`** | 假設 1,2,3 刪掉 2，若把 3 改成 2，會與「未來新增的第 4 章」或既有資料衝突；保留 `order=3` 的空洞最安全 |
 | 唯一約束 `(novel, order)` | 新增時 `get_next_order()` 保證不撞號；刪除不重排保證不產生衝突 |
@@ -404,11 +397,11 @@ sequenceDiagram
 
 ---
 
-## SD-4：留言與一層回覆（Comment and Reply）
+## SD-4：留言與多層回覆（Comment and Reply）
 
 **對應用例**：`Post Comment` / `Reply to Comment`　**需求**：D3、D6、G3
 
-`Reply to Comment` 在 Use Case 圖中是 `Post Comment` 的 **generalization**（回覆就是帶 `parent` 的留言）。因此這兩者共用**完全相同**的流程，差別只在 `parent` 是否有值。圖上用 `opt` 區塊表示。
+`Reply to Comment` 在 Use Case 圖中是 `Post Comment` 的 **generalization**（回覆就是帶 `parent` 的留言）。因此這兩者共用**完全相同**的流程，差別只在 `parent_id` 是否有值。圖上用 `opt` 區塊表示。**v2 起回覆不限層數**：`parent` 可指向任何同章節的有效留言。
 
 ```mermaid
 sequenceDiagram
@@ -427,27 +420,29 @@ sequenceDiagram
     alt Not logged in
         V-->>User: 302 redirect to login page
     else Logged in
-        V->>F: CommentForm(data, chapter=chapter)
+        V->>M: Novel.objects.get(pk=3) / Chapter.objects.active().get(order=7)
+        M-->>V: novel, chapter
+        V->>F: CommentForm(data)
         activate F
         F->>F: clean()
 
         opt parent_id is provided (reply)
-            F->>F: load parent comment
-            F->>F: parent.parent_id is not None?
+            F->>M: Comment.objects.active().filter(pk=parent_id).first()
+            M-->>F: parent or None
         end
 
-        alt Validation failed (reply to a reply)
-            F-->>V: ValidationError("Only one level of reply allowed")
-            V-->>User: 200 render chapter page with error
+        alt Validation failed (parent not found / empty content)
+            F-->>V: ValidationError
+            V-->>User: redirect to chapter page + error message
         else Validation passed
-            V->>F: form.save()
-            F->>M: Comment.objects.create(user, chapter, content, parent)
+            V->>M: comment = form.save(commit=False)
+            V->>M: comment.user=user, comment.chapter=chapter, comment.parent=parent
+            V->>M: comment.save()
             activate M
             M->>DB: INSERT INTO interaction_comment
             DB-->>M: row
-            M-->>F: comment
+            M-->>V: comment
             deactivate M
-            F-->>V: comment
             V-->>User: 302 redirect to chapter page
         end
         deactivate F
@@ -460,13 +455,13 @@ sequenceDiagram
 | 步驟 | 設計理由 |
 |---|---|
 | 驗證放在 `CommentForm.clean()` | 這是**表單層**規則（使用者輸入），不是資料完整性規則，因此不放 `Model.clean()` 也不放資料庫 |
-| 檢查 `parent.parent_id` | 若父留言本身已有父留言，代表這會成為第三層，必須拒絕 |
+| 只檢查父留言存在且有效 | v2 起**不限回覆層數**：`parent` 可指向任何同章節的有效留言，`clean()` 只確認父留言存在（`Comment.objects.active().filter(pk=parent_id).first()`），不阻止第三層以上 |
 | 兩者共用一個 View | `Reply` 只是多了 `parent_id`，不需另開 view；Use Case 圖的 generalization 正好對應此實作 |
-| 一層回覆的顯示 | `Comment.get_replies()` 取得子留言，模板以縮排呈現 |
+| 顯示以遞迴呈現 | 模板以遞迴顯示多層回覆；`Comment.get_replies()` 取得直接子留言 |
 
 ### 為什麼不用資料庫約束
 
-`CHECK` 無法跨列查詢「父留言的父留言」。要資料庫層保證，得用 trigger 或正規化，對 prototype 而言成本過高。**應用層驗證 + 文件說明**是合理取捨，已在 `03-er-diagram.md` 的約束總表標明。
+「父留言必須存在且同章節」是跨列的應用層規則。要資料庫層保證，得用 trigger 或額外查詢，對 prototype 而言成本過高。**應用層驗證 + 文件說明**是合理取捨，已在 `03-er-diagram.md` 的約束總表標明。
 
 ### 對應關係
 
@@ -585,7 +580,7 @@ sequenceDiagram
 | D1 | 收藏／取消收藏 | SD-1 |
 | D2 | 我的收藏 | SD-1（收藏後寫入，列表頁讀取） |
 | D3 | 章節評論 | SD-4 |
-| D6 | 一層回覆 | SD-4（`clean()` 拒絕第三層） |
+| D6 | 多層回覆 | SD-4（`clean()` 僅驗證父留言存在，不限層數） |
 | **E2** | **新建作品** | **SD-2** |
 | E4 | 刪除作品 | SD-5 |
 | E5 | 章節管理 | SD-3（權限 → 新增／刪除、`order` 策略） |
@@ -612,6 +607,11 @@ sequenceDiagram
 | SD-3 章節管理 | `sequence-3-chapter.png` | ✅ |
 | SD-4 留言回覆 | `sequence-4-comment.png` | ✅ |
 | SD-5 權限刪除 | `sequence-5-delete-permission.png` | ✅ |
+| SD-6 閱讀進度續讀（C5） | `sequence-6-reading-progress.png` | ✅ |
+| SD-7 草稿／定時發布（C6） | `sequence-7-chapter-draft.png` | ✅ |
+| SD-8 多層回覆＋按讚（D6 v2） | `sequence-8-comment-like.png` | ✅ |
+| SD-9 追蹤作者＋通知（v2） | `sequence-9-follow-notify.png` | ✅ |
+| SD-10 違規檢舉（F2 v2） | `sequence-10-report.png` | ✅ |
 
 ## 如何預覽
 
@@ -620,11 +620,11 @@ sequenceDiagram
 
 ---
 
-# v2 ??:?? / ???????
+# v2 擴充：閱讀 / 互動 / 管理
 
-> ????? v2 ????,???????????????? SD-1~SD-5 ???;SD-3/SD-4 ??????????????/?????????/??/????
+> 以下為 v2 擴充流程，涵蓋原 SD-1~SD-5 未涵蓋的功能；SD-3/SD-4 另補多層回覆/按讚/劇透與草稿/定時發布。
 
-## SD-6 ??????(C5)
+## SD-6 閱讀進度續讀(C5)
 
 ```mermaid
 sequenceDiagram
@@ -633,52 +633,59 @@ sequenceDiagram
     participant RP as ReadingProgress
     participant DB as SQLite
     R->>V: GET /novels/{pk}/chapters/{order}/
-    V->>DB: ???(visible(): active & !draft & ??)
+    V->>DB: 取章節(visible(): active & !draft & 已發布)
     V->>DB: Chapter.view_count + 1
-    V->>RP: update_or_create(user, novel, chapter=??)
+    V->>RP: update_or_create(user, novel, chapter=當前章)
     RP->>DB: INSERT/UPDATE interaction_readingprogress
-    V-->>R: 200 ???
-    Note over R,V: ????????
+    V-->>R: 200 章節頁
+    Note over R,V: 記錄閱讀進度
     R->>V: GET /novels/{pk}/
     V->>RP: filter(user, novel).first()
-    V-->>R: ???Continue reading ? Ch.N?
+    V-->>R: 顯示Continue reading 第 Ch.N 章
 ```
 
-## SD-7 ???? / ????(C6)
+## SD-7 草稿 / 定時發布(C6)
 
 ```mermaid
 sequenceDiagram
     actor A as Author
-    participant V as chapter_toggle_draft / chapter_create
+    participant V as chapter_create / chapter_toggle_draft
     participant S as NovelService
     participant DB as SQLite
-    A->>V: POST toggle-draft(???? scheduled_at)
-    V->>V: can_edit(novel, user) ? 403
-    V->>S: ?? is_draft / scheduled_at
-    S->>DB: UPDATE novels_chapter
-    Note over DB: visible() ??:is_draft=False ?(scheduled_at ??<=now)
-    A-->>V: 302 ???
-    Note over A,DB: ??????/??????? 404
+    A->>V: POST 新增章節(含 scheduled_at) / toggle-draft
+    V->>V: can_edit(novel, user) 否 403
+    alt 新增章節
+        V->>S: create_chapter(novel, title, content)
+        S->>DB: INSERT novels_chapter(order, published_at)
+        V->>DB: 更新 scheduled_at(update_fields)
+    else 切換草稿
+        V->>DB: is_draft 取反, save(update_fields=['is_draft'])
+    end
+    Note over DB: visible() 過濾:is_draft=False 且(scheduled_at 為空或<=now)
+    A-->>V: 302 導回作品頁
+    Note over A,DB: 草稿/未到期章節對讀者 404
 ```
 
-## SD-8 ???? + ????(D6 v2)
+## SD-8 留言 + 按讚(D6 v2)
 
 ```mermaid
 sequenceDiagram
     actor R as Reader
-    participant V as comment_create / comment_like
+    participant V as comment_create / comment_like_toggle
     participant F as CommentForm
     participant DB as SQLite
-    R->>V: POST comment(?? parent_id ????is_spoiler)
+    R->>V: POST comment(可含 parent_id)
     V->>F: validate
-    F-->>V: parent ????(????)
+    F-->>V: parent 驗證(存在且有效,不限層數)
     V->>DB: INSERT interaction_comment
     R->>V: POST /comments/{pk}/like/
     V->>DB: likes M2M add/remove
-    V-->>R: 302 ????
+    V-->>R: 302 導回章節頁
 ```
 
-## SD-9 ???? + ??(v2)
+> 註：`Comment.is_spoiler` 欄位已存在於 schema（v2），但目前 UI 未提供設定入口；按讚透過 M2M 切換實作。
+
+## SD-9 追蹤作者 + 通知(v2)
 
 ```mermaid
 sequenceDiagram
@@ -686,13 +693,16 @@ sequenceDiagram
     participant V as follow_toggle
     participant DB as SQLite
     R->>V: POST /users/{username}/follow/
-    V->>DB: Follow add/remove(??????)
-    V-->>R: 302 ???
-    Note over DB: ??? Notification ???(kind=reply/new_chapter),
-    Note over DB: ???? /notifications/ ??,???????
+    V->>V: 若 target == 自己 → 阻擋
+    V->>DB: Follow add/remove(切換)
+    V-->>R: 302 導回作者頁
+    Note over DB: 通知列表 /notifications/ + 標為已讀端點存在,
+    Note over DB: 但目前未在追蹤/回覆流程自動產生 Notification 記錄
 ```
 
-## SD-10 ????(F2 v2)
+> 註：`Notification` model、列表頁與「全部標為已讀」端點已實作；自動產生通知（如新章節/回覆時）目前僅在測試中建立，尚未接入實際流程（屬 v2 雛形）。
+
+## SD-10 違規檢舉(F2 v2)
 
 ```mermaid
 sequenceDiagram
@@ -700,8 +710,8 @@ sequenceDiagram
     participant V as report_create
     participant DB as SQLite
     R->>V: POST /novels/{pk}/report/ reason
-    V->>V: reason ???
+    V->>V: reason 必填驗證
     V->>DB: INSERT interaction_report(status=open)
-    V-->>R: 302 ???
-    Note over DB: admin ? Django Admin ??/??????
+    V-->>R: 302 導回
+    Note over DB: admin 於 Django Admin 檢視/處理檢舉
 ```

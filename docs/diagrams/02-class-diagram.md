@@ -120,6 +120,8 @@ classDiagram
         +datetime created_at
         +datetime published_at
         +count_words(text) int
+        +save() void
+        +get_absolute_url() str
         +get_next_chapter() Chapter
         +get_prev_chapter() Chapter
     }
@@ -170,12 +172,14 @@ classDiagram
         +str message
         +str url
         +bool is_read
+        +datetime created_at
     }
 
     class Follow {
         +int id
         +int follower_id
         +int author_id
+        +datetime created_at
     }
 
     class Report {
@@ -185,6 +189,7 @@ classDiagram
         +int comment_id
         +str reason
         +str status
+        +datetime created_at
     }
 
     class OutlineItem {
@@ -199,6 +204,7 @@ classDiagram
     class NovelService {
         <<service>>
         +publish(novel) void
+        +unpublish(novel) void
         +create_chapter(novel, title, content) Chapter
         +reorder_chapter(chapter, new_order) void
         +delete_chapter(chapter) void
@@ -287,7 +293,7 @@ classDiagram
 - 作品本體，`author` 為 FK → `User`，`category` 為 FK → `Category`。
 - `status`：`ongoing`（連載中）／`completed`（已完結），以 `choices` 限制，**預設 `ongoing`，不允許空字串**。
 - `is_published`：**作品曝光開關**（對應 E7、F2）。建立時預設 `False`（未發布），作者按「發布」後為 `True`。**發布動作不放在 model 上**，交由 `NovelService.publish()` 處理。
-- ⚠️ **發布不要求有任何章節**：`Chapter` 沒有草稿狀態（一建立即公開），因此「有沒有章節」不能作為發布條件。零章節的作品發布後，詳情頁顯示「暫無章節」。
+- ⚠️ **發布不要求有任何章節**：「有沒有章節」不能作為發布條件。零章節的作品發布後，詳情頁顯示「暫無章節」。章節另有 `is_draft` / `scheduled_at` 控制單章可見性，但與作品的 `is_published` 是兩回事。
 - `get_chapter_count()`：章節數，用於作品頁與列表。
 - `get_next_order()`：計算下一個章節編號。
 - **`updated_at` 的維護**：`auto_now=True` 只在**儲存 `Novel` 自身**時更新。新增／刪除章節時，由 `NovelService.create_chapter()` / `delete_chapter()` 同時執行 `novel.save(update_fields=['updated_at'])`，否則「最新更新」（B1）與索引 `(is_published, -updated_at)` 不會反映章節變動。
@@ -298,27 +304,32 @@ classDiagram
 ### `Chapter`（`novels`）
 
 - 屬於 `Novel` 的組合（`Novel` 刪除 → 章節連帶刪除）。
-- 主鍵 `id`；外鍵 `novel`（DB 欄位 `novel_id`）。
-- `order`：章節順序（對應 E6）；`(novel, order)` 有 `unique_together`。
+- 主鍵 `id`；外鍵 `novel`（DB 欄位 `novel_id`）、可空外鍵 `volume`（`SET_NULL`，對應 C4 卷階層）。
+- `order`：章節順序（對應 E6）；`(novel, order)` 有 `UniqueConstraint`。
 - `is_active`：軟刪除／下架旗標（對應 F2）。**下架只把 `is_active` 設為 `False`，不重新排序**（保留原 `order` 以免違反唯一約束）。
-- `published_at`：**章節建立時間**，由 `NovelService.create_chapter()` 寫入 `now()`。章節**沒有草稿狀態**，此欄不是「發布開關」，作品的曝光由 `Novel.is_published` 決定。
-- `get_next_chapter()` / `get_prev_chapter()`：閱讀頁導航（對應 C2）。
-- 對應需求：C1–C3、E5、E6、D3、F2。
+- `is_draft` / `scheduled_at`：單章可見性（v2）。`is_draft=True` 或 `scheduled_at` 尚未到期時，讀者看不到此章；由 `ChapterQuerySet.visible()` 統一過濾。
+- `view_count` / `word_count`：瀏覽數與字數（v2）；`save()` 會自動以 `count_words()` 重算 `word_count`。
+- `published_at`：**章節建立時間**，由 `NovelService.create_chapter()` 寫入 `now()`。此欄不是「發布開關」；可見性由 `is_draft` / `scheduled_at` 判斷，作品曝光由 `Novel.is_published` 決定。
+- `count_words(text)`：字數計算（CJK 逐字、Latin 逐詞）。
+- `get_next_chapter()` / `get_prev_chapter()`：閱讀頁導航（對應 C2），只回傳 `is_active=True` 的章節。
+- `get_absolute_url()`：導向閱讀頁。
+- 對應需求：C1–C3、C4、C6、E5、E6、D3、F2。
 
 ### `Favorite`（`interaction`）
 
 - 關聯類別：`User × Novel`，帶 `created_at`。
 - 主鍵 `id`；外鍵 `user`、`novel`。
-- `unique_together(user, novel)` 防止重複收藏（對應 D1）。
+- `UniqueConstraint(user, novel)` 防止重複收藏（對應 D1）。
 - 對應需求：D1、D2。
 
 ### `Comment`（`interaction`）
 
-- 掛在 `Chapter` 下（設計決策 2）；`parent` 自關聯支援一層回覆（D6）。
+- 掛在 `Chapter` 下（設計決策 2）；`parent` 自關聯支援**多層回覆**（D6，v2 放寬為不限層數）。
 - 主鍵 `id`；外鍵 `user`、`chapter`、可空 `parent`。
-- `is_active`：軟刪除／下架旗標（對應 F2、D4）。**下架與刪除皆只把 `is_active` 設為 `False`**，不觸發資料庫 CASCADE，也不重排其他留言。
-- `get_replies()`：取得一層回覆。
-- 「一層回覆」限制於 **`CommentForm.clean()`** 驗證：若 `parent.parent_id is not None` 則拋出 `ValidationError`（對應 G3）。
+- `is_active`：軟刪除／下架旗標（對應 F2、D4）。**下架與刪除皆只把 `is_active` 設為 `False`**，不觸發資料庫 CASCADE，也不重排其他留言；刪除父留言時子回覆一併隱藏（由 view 處理）。
+- `is_spoiler`：劇透標記（v2）；`likes`：按讚 M2M（v2）。
+- `get_replies()`：取得此留言的有效回覆（`Comment.objects.active().filter(parent=self)`）。
+- 多層回覆規則由 **`CommentForm.clean()`** 驗證：只檢查父留言存在於同章節（不限層數）（對應 G3）。
 - 刪除權限由 `CommentOwnerStrategy` 判斷（見 Design Patterns），model 不自帶 `can_delete`。
 - 對應需求：D3–D6。
 
@@ -327,7 +338,7 @@ classDiagram
 - 關聯類別：`User × Novel`，每人對每部作品僅一筆，可修改。
 - 主鍵 `id`；外鍵 `user`、`novel`。
 - `score` 限制 1–5，於 `clean()` 驗證（對應 G3）。
-- `unique_together(user, novel)` 保證唯一；`updated_at` 記錄最後修改時間（D7「可修改」）。
+- `UniqueConstraint(user, novel)` 保證唯一；`updated_at` 記錄最後修改時間（D7「可修改」）。
 - 對應需求：D7。
 
 ### 為什麼只有部分 model 有 `updated_at`
@@ -351,6 +362,7 @@ classDiagram
 | 方法 | 職責 |
 |---|---|
 | `publish(novel)` | 設 `is_published=True` → 存檔（**不檢查章節數**，理由見 SD-2） |
+| `unpublish(novel)` | 設 `is_published=False` → 存檔（E7 再次發布切換 / F2 下架，資料保留） |
 | `create_chapter(novel, title, content)` | 以 `get_next_order()` 計算 `order`、寫入 `published_at`、建立章節，並更新 `novel.updated_at`（供 B1「最新更新」排序） |
 | `reorder_chapter(chapter, new_order)` | 移動章節並重排其他章節的 `order`（同作品內） |
 | `delete_chapter(chapter)` | 把 `is_active` 設為 `False`（軟刪除），**不重排 `order`**，避免違反 `(novel, order)` 唯一約束；同時更新 `novel.updated_at` |
@@ -423,12 +435,12 @@ class CommentOwnerStrategy(PermissionStrategy):
 | Chapter — Comment | Composition | 1 : 0..N | `Comment.chapter = ForeignKey(Chapter, on_delete=CASCADE)`；下架用 `is_active=False`，不是刪除 |
 | Comment — Comment | Self-association | 0..1 : 0..N | `parent = ForeignKey('self', null=True, on_delete=CASCADE)` |
 | User — Comment | Association（FK） | 1 : 0..N | `Comment.user = ForeignKey(User, on_delete=CASCADE)` |
-| User × Novel（收藏） | ManyToMany via `Favorite` | M : N（每對 0..1） | 兩 FK + `unique_together` |
-| User × Novel（評分） | ManyToMany via `Rating` | M : N（每對 0..1） | 兩 FK + `unique_together` |
+| User × Novel（收藏） | ManyToMany via `Favorite` | M : N（每對 0..1） | 兩 FK + `UniqueConstraint` |
+| User × Novel（評分） | ManyToMany via `Rating` | M : N（每對 0..1） | 兩 FK + `UniqueConstraint` |
 | NovelService → Novel / Chapter | Dependency | — | 以參數接收 model 實例 |
 | PermissionStrategy ← AuthorOrAdmin / CommentOwner | Inheritance | — | 子類覆寫 `can_edit()` |
 
-> **多重性說明**：`Novel`、`Chapter` 的關係寫成 `0..*` 是因為**作品可以在沒有任何章節的情況下建立並發布**。`Favorite` / `Rating` 雖然畫成 `User 1 — 0..* Favorite`、`Novel 1 — 0..* Favorite`，但受 `unique_together(user, novel)` 限制，**每一對 (user, novel) 最多一筆**。
+> **多重性說明**：`Novel`、`Chapter` 的關係寫成 `0..*` 是因為**作品可以在沒有任何章節的情況下建立並發布**。`Favorite` / `Rating` 雖然畫成 `User 1 — 0..* Favorite`、`Novel 1 — 0..* Favorite`，但受 `UniqueConstraint(user, novel)` 限制，**每一對 (user, novel) 最多一筆**。
 
 > **UML 正確性**：本圖的關係符號與多重性已逐一人工核對，並以 mermaid-cli 實際渲染驗證通過。Mermaid 的 `classDiagram` 對 UML 支援為簡化版（不支援注釋框、部分標註語法）；若需標準 UML 呈現，可依本圖結構用 draw.io 重畫。
 
@@ -442,11 +454,18 @@ class CommentOwnerStrategy(PermissionStrategy):
 | `Profile` | A3、A4、A5 |
 | `Category` | B4、F1、G1 |
 | `Novel` | B1–B7、E1–E4、E7、E8、D7 |
-| `Chapter` | C1–C3、E5、E6、D3、F2 |
+| `Chapter` | C1–C4、C6、E5、E6、D3、F2 |
+| `Volume` | C4 |
+| `Tag` | B6（標籤篩選） |
 | `Favorite` | D1、D2 |
 | `Comment` | D3–D6、F2、G3 |
 | `Rating` | D7、G3 |
-| `NovelService` | E4、E5、E6、E7 |
+| `ReadingProgress` | C5 |
+| `Notification` | 通知（v2） |
+| `Follow` | 追蹤作者（v2） |
+| `Report` | F2（檢舉佇列，v2） |
+| `OutlineItem` | 寫作大綱（v2） |
+| `NovelService` | E4、E5、E6、E7、F2 |
 | `PermissionStrategy` | A6、D4、E3、E4 |
 
 ---
@@ -457,9 +476,9 @@ class CommentOwnerStrategy(PermissionStrategy):
 |---|---|
 | `User` | Django 內建（`django.contrib.auth`） |
 | `Profile` | `accounts/models.py` |
-| `Category`、`Novel`、`Chapter` | `novels/models.py` |
+| `Category`、`Tag`、`Novel`、`Volume`、`Chapter` | `novels/models.py` |
 | `NovelService` | `novels/services.py` |
-| `Favorite`、`Comment`、`Rating` | `interaction/models.py` |
+| `Favorite`、`ReadingProgress`、`Comment`、`Rating`、`Notification`、`Follow`、`Report`、`OutlineItem` | `interaction/models.py` |
 | `PermissionStrategy` 等 | `accounts/permissions.py` |
 
 ---
