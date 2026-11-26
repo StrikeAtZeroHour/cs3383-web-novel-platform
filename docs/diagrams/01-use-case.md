@@ -194,7 +194,7 @@ flowchart LR
 | Favorite Novel | 收藏／取消收藏（不得重複） | D1 | `Favorite` |
 | View My Favorites | 個人主頁的收藏分頁 | D2 | `Favorite` |
 | Post Comment | 在章節下留言 | D3 | `Comment` |
-| Reply to Comment | 一層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言） | D6 | `Comment` |
+| Reply to Comment | 一層或多層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言） | D6 | `Comment` |
 | Delete Own Comment | 本人或 admin 可刪（獨立用例，與「發表」無延伸關係） | D4 | `Comment`、`PermissionStrategy` |
 | Rate Novel 1-5 | 每人每作品一筆，可修改 | D7 | `Rating` |
 
@@ -309,7 +309,7 @@ flowchart LR
 | `Create Novel` | SD-2 | 輸入書名建新書、`author = request.user`、預設 `is_published=False` |
 | `Manage Chapters` | SD-3 | 先驗作品歸屬（`AuthorOrAdminStrategy`）→ `get_next_order()`、軟刪除不重排 `order` |
 | `Favorite Novel` | SD-1 | 收藏／取消收藏 toggle、登入前置、`unique_together` |
-| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm.clean()` 拒絕第二層以上回覆 |
+| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm` 檢查空白內容、`parent_id` 指向已刪除留言時拒絕；回覆層數不限 |
 | `Delete Novel` | SD-5 | `PermissionStrategy` 三分支、硬刪除 CASCADE |
 | `Publish Novel` | SD-2 的「附帶動作：發布」段落 | 經 `NovelService.publish()`、需權限、不檢查章節數（流程僅 2 步，未獨立成圖） |
 
