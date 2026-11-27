@@ -190,9 +190,44 @@ erDiagram
         bigint reporter_id "FK to auth_user, not null"
         bigint novel_id "FK to novels_novel, nullable"
         bigint comment_id "FK to interaction_comment, nullable"
+        bigint discussion_id "FK to interaction_discussion, nullable"
         text reason "report reason"
         varchar status "open, resolved or rejected"
         datetime created_at "created"
+    }
+
+    INTERACTION_DISCUSSION {
+        bigint id "primary key"
+        bigint user_id "FK to auth_user, not null, on_delete=CASCADE"
+        bigint novel_id "FK to novels_novel, nullable, on_delete=SET_NULL"
+        bigint chapter_id "FK to novels_chapter, nullable, on_delete=SET_NULL"
+        varchar title "discussion title"
+        text body "discussion body"
+        boolean is_active "soft delete flag, not null"
+        datetime created_at "created"
+        datetime updated_at "updated"
+    }
+
+    INTERACTION_DISCUSSION_LIKES {
+        bigint id "primary key"
+        bigint discussion_id "FK to interaction_discussion"
+        bigint user_id "FK to auth_user"
+    }
+
+    INTERACTION_DISCUSSIONREPLY {
+        bigint id "primary key"
+        bigint discussion_id "FK to interaction_discussion, not null, on_delete=CASCADE"
+        bigint user_id "FK to auth_user, not null, on_delete=CASCADE"
+        bigint parent_id "FK to interaction_discussionreply, nullable, on_delete=CASCADE, threaded"
+        text content "reply body, not null"
+        boolean is_active "soft delete flag, not null"
+        datetime created_at "created"
+    }
+
+    INTERACTION_DISCUSSIONREPLY_LIKES {
+        bigint id "primary key"
+        bigint discussionreply_id "FK to interaction_discussionreply"
+        bigint user_id "FK to auth_user"
     }
 
     INTERACTION_OUTLINEITEM {
@@ -226,6 +261,17 @@ erDiagram
     AUTH_USER ||--o{ INTERACTION_FOLLOW : "follows"
     AUTH_USER ||--o{ INTERACTION_REPORT : "submits"
     NOVELS_NOVEL ||--o{ INTERACTION_OUTLINEITEM : "planned_by"
+    AUTH_USER ||--o{ INTERACTION_DISCUSSION : "starts"
+    NOVELS_NOVEL |o--o{ INTERACTION_DISCUSSION : "about"
+    NOVELS_CHAPTER |o--o{ INTERACTION_DISCUSSION : "about"
+    INTERACTION_DISCUSSION ||--o{ INTERACTION_DISCUSSION_LIKES : "liked_by"
+    AUTH_USER ||--o{ INTERACTION_DISCUSSION_LIKES : "likes"
+    INTERACTION_DISCUSSION ||--o{ INTERACTION_DISCUSSIONREPLY : "has"
+    INTERACTION_DISCUSSIONREPLY |o--o{ INTERACTION_DISCUSSIONREPLY : "replies"
+    AUTH_USER ||--o{ INTERACTION_DISCUSSIONREPLY : "writes"
+    INTERACTION_DISCUSSIONREPLY ||--o{ INTERACTION_DISCUSSIONREPLY_LIKES : "liked_by"
+    AUTH_USER ||--o{ INTERACTION_DISCUSSIONREPLY_LIKES : "likes"
+    INTERACTION_DISCUSSION |o--o{ INTERACTION_REPORT : "reported"
 ```
 
 ---
@@ -383,9 +429,13 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_readingprogress` | user_id, novel_id, chapter_id, updated_at | **UNIQUE(user_id, novel_id)** — 每用戶每作品一筆 |
 | `interaction_notification` | recipient_id, kind, message, url, is_read, created_at | — |
 | `interaction_follow` | follower_id, author_id, created_at | **UNIQUE(follower_id, author_id)** |
-| `interaction_report` | reporter_id, novel_id(nullable), comment_id(nullable), reason, status, created_at | status ∈ open/resolved/rejected |
+| `interaction_report` | reporter_id, novel_id(nullable), comment_id(nullable), discussion_id(nullable), reason, status, created_at | status ∈ open/resolved/rejected |
 | `interaction_outlineitem` | novel_id, title, body, order | — |
 | `interaction_comment_likes` | comment_id, user_id | M2M 中介表 |
+| `interaction_discussion` | user_id, novel_id(nullable), chapter_id(nullable), title, body, is_active, created_at, updated_at | 討論版貼文（v2 社群） |
+| `interaction_discussion_likes` | discussion_id, user_id | M2M 中介表 |
+| `interaction_discussionreply` | discussion_id, user_id, parent_id(nullable), content, is_active, created_at | 多層回覆（v2 社群） |
+| `interaction_discussionreply_likes` | discussionreply_id, user_id | M2M 中介表 |
 
 ### 8. `interaction_rating`
 
@@ -424,6 +474,11 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_readingprogress` | UNIQUE | `(user_id, novel_id)` | DB |
 | `interaction_follow` | UNIQUE | `(follower_id, author_id)` | DB |
 | `interaction_comment_likes` | UNIQUE | `(comment_id, user_id)` | DB（M2M） |
+| `interaction_discussion_likes` | UNIQUE | `(discussion_id, user_id)` | DB（M2M） |
+| `interaction_discussionreply_likes` | UNIQUE | `(discussionreply_id, user_id)` | DB（M2M） |
+| `interaction_discussion` | 應用層 | 指定章節須屬於指定作品 | `DiscussionForm.clean()` |
+| `interaction_discussionreply` | 應用層 | 父回覆須存在且屬同一討論 | `DiscussionReplyForm.clean()` |
+| `interaction_discussion` | 索引 | `(is_active, -created_at)` | DB |
 
 ## 外鍵刪除策略
 
@@ -446,6 +501,13 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `Report.reporter` | `CASCADE` | 檢舉者刪除 → 檢舉刪除 |
 | `Report.novel/.comment` | `CASCADE` | 目標刪除 → 檢舉刪除（nullable） |
 | `OutlineItem.novel` | `CASCADE` | 作品刪除 → 大綱刪除 |
+| `Discussion.user` | `CASCADE` | 帳號刪除 → 其討論刪除 |
+| `Discussion.novel` | `SET_NULL` | 作品刪除 → 討論保留，novel 設空 |
+| `Discussion.chapter` | `SET_NULL` | 章節刪除 → 討論保留，chapter 設空 |
+| `DiscussionReply.discussion` | `CASCADE` | 討論刪除 → 回覆一併刪除 |
+| `DiscussionReply.user` | `CASCADE` | 帳號刪除 → 其回覆刪除 |
+| `DiscussionReply.parent` | `CASCADE` | 父回覆刪除 → 子回覆一併刪除 |
+| `Report.discussion` | `CASCADE` | 討論刪除 → 檢舉刪除（nullable） |
 
 ## 索引建議
 
@@ -461,6 +523,8 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_rating` | `novel_id` | 平均評分計算 |
 | `interaction_readingprogress` | `(user_id, novel_id)` UNIQUE | 續讀查詢（C5） |
 | `interaction_follow` | `(follower_id, author_id)` UNIQUE | 追蹤查詢 |
+| `interaction_discussion` | `(is_active, -created_at)` | 討論版列表（v2） |
+| `interaction_discussionreply` | `(discussion_id, created_at)` | 討論回覆列表（v2） |
 | `novels_chapter` | `scheduled_at` | 定時發布讀取判斷 |
 
 > **B6「最多收藏／最多評論」排序**：以 `annotate(Count())` 聚合計算，prototype 階段資料量小，不需為此另建計數欄位或額外索引。
@@ -490,6 +554,10 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 | `interaction_follow` | `interaction` | `Follow` |
 | `interaction_report` | `interaction` | `Report` |
 | `interaction_outlineitem` | `interaction` | `OutlineItem` |
+| `interaction_discussion` | `interaction` | `Discussion` |
+| `interaction_discussion_likes` | `interaction` | (M2M) |
+| `interaction_discussionreply` | `interaction` | `DiscussionReply` |
+| `interaction_discussionreply_likes` | `interaction` | (M2M) |
 
 ---
 
@@ -512,3 +580,5 @@ Django 認證表，本專案**直接沿用**，不修改結構。
 1. 開 <https://mermaid.live>，貼上上面的 `mermaid` 區塊。
 2. 或安裝 VS Code 擴充 **Markdown Preview Mermaid Support** 直接預覽。
 3. 匯出：mermaid.live → `Actions` → `Download PNG / SVG`。
+
+> **向量版本**：同目錄另提供 `er-diagram.svg`（向量，放大／列印不失真），`er-diagram.png` 保留作為預覽縮圖。SVG 由 `mmdc -i … -o er-diagram.svg` 產生。

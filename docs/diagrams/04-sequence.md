@@ -258,97 +258,97 @@ POST /novels/12/publish/
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    actor User
-    participant V as View
-    participant P as AuthorOrAdminStrategy
-    participant S as NovelService
-    participant M as Model
-    participant DB as SQLite
+autonumber
+actor User
+participant V as View
+participant P as AuthorOrAdminStrategy
+participant S as NovelService
+participant M as Model
+participant DB as SQLite
 
-    Note over User,DB: Part A - Create chapter under my own novel
+Note over User,DB: Part A - Create chapter under my own novel
 
-    User->>V: POST /novels/12/chapters/add/ (title, content)
-    activate V
-    V->>V: Check login
+User->>V: POST /novels/12/chapters/add/ (title, content)
+activate V
+V->>V: Check login
 
-    alt Not logged in
-        V-->>User: 302 redirect to login page
-    else Logged in
-        V->>M: Novel.objects.get(pk=12)
-        activate M
-        M->>DB: SELECT * FROM novels_novel WHERE id=12
-        DB-->>M: row (author_id=7)
-        M-->>V: novel
-        deactivate M
-
-        V->>P: can_edit(novel, user)
-        activate P
-        P->>M: user.is_admin()
-        M-->>P: False
-        P->>P: author_id(7) == user.id(7)
-        P-->>V: True
-        deactivate P
-
-        alt Not author and not admin
-            V-->>User: 403 Forbidden
-        else Owner or admin
-            V->>S: create_chapter(novel, title, content)
-            activate S
-            S->>M: novel.get_next_order()
-            activate M
-            M->>DB: SELECT MAX("order") FROM novels_chapter WHERE novel_id=12
-            DB-->>M: 2
-            M-->>S: 3
-            deactivate M
-            S->>M: Chapter.objects.create(novel, order=3, title, content, published_at=now())
-            activate M
-            M->>DB: INSERT INTO novels_chapter (novel_id=12, "order"=3, ...)
-            DB-->>M: row
-            M-->>S: chapter
-            deactivate M
-            S-->>V: chapter
-            deactivate S
-            V-->>User: 302 redirect to /novels/12/chapters/3/
-        end
-    end
-    deactivate V
-
-    Note over User,DB: Part B - Delete chapter (soft delete)
-
-    User->>V: POST /novels/12/chapters/3/delete/
-    activate V
-    V->>V: Check login
-    V->>M: Chapter.objects.get(pk=3) and Novel.objects.get(pk=12)
+alt Not logged in
+    V-->>User: 302 redirect to login page
+else Logged in
+    V->>M: Novel.objects.get(pk=12)
     activate M
-    M->>DB: SELECT ... FROM novels_chapter JOIN novels_novel
-    DB-->>M: row
-    M-->>V: chapter, novel
+    M->>DB: SELECT * FROM novels_novel WHERE id=12
+    DB-->>M: row (author_id=7)
+    M-->>V: novel
     deactivate M
 
     V->>P: can_edit(novel, user)
     activate P
-    P-->>V: True (owner)
+    P->>M: user.is_admin()
+    M-->>P: False
+    P->>P: author_id(7) == user.id(7)
+    P-->>V: True
     deactivate P
 
     alt Not author and not admin
         V-->>User: 403 Forbidden
     else Owner or admin
-        V->>S: delete_chapter(chapter)
+        V->>S: create_chapter(novel, title, content)
         activate S
-        S->>M: chapter.is_active = False
-        S->>M: chapter.save()
+        S->>M: novel.get_next_order()
         activate M
-        M->>DB: UPDATE novels_chapter SET is_active=0 WHERE id=3
-        DB-->>M: ok
-        M-->>S: saved
+        M->>DB: SELECT MAX("order") FROM novels_chapter WHERE novel_id=12
+        DB-->>M: 2
+        M-->>S: 3
         deactivate M
-        S-->>V: done
+        S->>M: Chapter.objects.create(novel, order=3, title, content, published_at=now())
+        activate M
+        M->>DB: INSERT INTO novels_chapter (novel_id=12, "order"=3, ...)
+        DB-->>M: row
+        M-->>S: chapter
+        deactivate M
+        S-->>V: chapter
         deactivate S
-        Note over S: "order" is NOT recomputed<br/>to keep UNIQUE(novel_id, order) valid
-        V-->>User: 302 redirect to /novels/12/
+        V-->>User: 302 redirect to /novels/12/chapters/3/
     end
-    deactivate V
+end
+deactivate V
+
+Note over User,DB: Part B - Delete chapter (soft delete)
+
+User->>V: POST /novels/12/chapters/3/delete/
+activate V
+V->>V: Check login
+V->>M: Chapter.objects.get(pk=3) and Novel.objects.get(pk=12)
+activate M
+M->>DB: SELECT ... FROM novels_chapter JOIN novels_novel
+DB-->>M: row
+M-->>V: chapter, novel
+deactivate M
+
+V->>P: can_edit(novel, user)
+activate P
+P-->>V: True (owner)
+deactivate P
+
+alt Not author and not admin
+    V-->>User: 403 Forbidden
+else Owner or admin
+    V->>S: delete_chapter(chapter)
+    activate S
+    S->>M: chapter.is_active = False
+    S->>M: chapter.save()
+    activate M
+    M->>DB: UPDATE novels_chapter SET is_active=0 WHERE id=3
+    DB-->>M: ok
+    M-->>S: saved
+    deactivate M
+    S-->>V: done
+    deactivate S
+    Note over S: "order" is NOT recomputed<br/>to keep UNIQUE(novel_id, order) valid
+    V-->>User: 302 redirect to /novels/12/
+end
+deactivate V
 ```
 
 ### 說明
@@ -397,79 +397,133 @@ sequenceDiagram
 
 ---
 
-## SD-4：留言與多層回覆（Comment and Reply）
+## SD-4：留言與回覆（Comment and Reply）
 
 **對應用例**：`Post Comment` / `Reply to Comment`　**需求**：D3、D6、G3
 
 `Reply to Comment` 在 Use Case 圖中是 `Post Comment` 的 **generalization**（回覆就是帶 `parent` 的留言）。因此這兩者共用**完全相同**的流程，差別只在 `parent_id` 是否有值。圖上用 `opt` 區塊表示。**v2 起回覆不限層數**：`parent` 可指向任何同章節的有效留言。
 
+> 回覆**層數不限**：`CommentForm.clean()` 只檢查 `parent_id` 指向的留言存在且未被軟刪除，並不要求 parent 本身是頂層留言，所以「回覆的回覆」也可以成立。
+
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User
-    participant V as View
+    actor U as User
+    participant V as View<br/>comment_create
     participant F as CommentForm
-    participant M as Model
+    participant M as Model/QuerySet
+    participant C as Comment<br/>(instance)
     participant DB as SQLite
 
-    User->>V: POST /novels/3/chapters/7/comment/
-    Note over User,V: form contains content<br/>and optional parent_id (for reply)
+    U->>V: POST /novels/3/chapters/7/comments/<br/>content=... , parent_id=42 (hidden, optional)
     activate V
-    V->>V: Check login
-
+    Note over V: @login_required runs first<br/>(before the view body)
     alt Not logged in
-        V-->>User: 302 redirect to login page
+        V-->>U: 302 redirect to /accounts/login/?next=...
     else Logged in
-        V->>M: Novel.objects.get(pk=3) / Chapter.objects.active().get(order=7)
-        M-->>V: novel, chapter
-        V->>F: CommentForm(data)
-        activate F
-        F->>F: clean()
-
-        opt parent_id is provided (reply)
-            F->>M: Comment.objects.active().filter(pk=parent_id).first()
-            M-->>F: parent or None
-        end
-
-        alt Validation failed (parent not found / empty content)
-            F-->>V: ValidationError
-            V-->>User: redirect to chapter page + error message
-        else Validation passed
-            V->>M: comment = form.save(commit=False)
-            V->>M: comment.user=user, comment.chapter=chapter, comment.parent=parent
-            V->>M: comment.save()
+        Note over V: @require_POST runs next
+        alt Not a POST request
+            V-->>U: 405 Method Not Allowed
+        else POST
+            V->>M: get_object_or_404(Novel, pk=3)
             activate M
-            M->>DB: INSERT INTO interaction_comment
-            DB-->>M: row
-            M-->>V: comment
+            M->>DB: SELECT ... FROM novels_novel WHERE id = 3
+            DB-->>M: novel row or no row
+            M-->>V: novel or Http404
+            M->>M: Chapter.objects.active()
+            M->>DB: SELECT ... FROM novels_chapter<br/>WHERE novel_id = 3 AND order = 7 AND is_active = 1
+            DB-->>M: chapter row or no row
+            M-->>V: chapter or Http404
             deactivate M
-            V-->>User: 302 redirect to chapter page
+            opt Novel or chapter not found
+                V-->>U: 404 Not Found
+            end
+            Note over V,M: code path continues only if both objects exist<br/>(get_object_or_404 raised otherwise)
+
+            V->>F: CommentForm(request.POST)
+            activate F
+            F->>F: is_valid() runs clean_content() then clean()
+            F->>F: clean_content() strip text<br/>blank raises Comment cannot be empty.
+            opt parent_id is provided (this is a reply)
+                F->>M: Comment.objects.active().filter(pk=42).first()
+                activate M
+                M->>DB: SELECT ... FROM interaction_comment<br/>WHERE id = 42 AND is_active = 1
+                DB-->>M: parent row or no row
+                M-->>F: parent or None
+                deactivate M
+                alt parent is None
+                    F->>F: raise ValidationError<br/>The comment you replied to no longer exists.
+                else parent found
+                    F->>F: cleaned_data parent = parent<br/>(no depth limit, multi-level replies allowed)
+                end
+            end
+
+            alt Validation failed (blank content, unknown parent, or extra error)
+                F-->>V: is_valid() returns False, form.errors
+                V->>V: error = form.errors.get(__all__)
+                Note over V: messages.error(error text)<br/>or fallback Please check your comment and try again.
+                V-->>U: 302 redirect to novels:chapter_read<br/>novel_pk = 3, order = 7
+                Note over DB: nothing is written to SQLite
+            else Validation passed
+                F-->>V: is_valid() returns True
+                V->>F: form.save(commit=False)
+                activate F
+                F-->>V: comment (unsaved, no id yet)
+                deactivate F
+                V->>C: comment.user = request.user
+                V->>C: comment.chapter = chapter
+                V->>C: comment.parent = cleaned_data.get(parent)
+                V->>C: comment.save()
+                activate C
+                Note over C: plain Model.save(), no override
+                C->>DB: INSERT INTO interaction_comment<br/>(user_id, chapter_id, parent_id, content,<br/>is_active, is_spoiler, created_at)
+                DB-->>C: new row, id assigned
+                deactivate C
+                V->>V: messages.success(Comment posted.)
+                V-->>U: 302 redirect to novels:chapter_read<br/>novel_pk = 3, order = 7
+            end
         end
         deactivate F
     end
     deactivate V
+
+    opt Follow-up request, NOT part of comment_create
+        U->>V: GET /novels/3/chapters/7/<br/>(browser follows the 302)
+        V->>DB: SELECT novel, chapter, comments<br/>and their replies
+        DB-->>V: rows
+        V-->>U: 200 chapter page
+    end
 ```
 
 ### 說明
 
 | 步驟 | 設計理由 |
 |---|---|
-| 驗證放在 `CommentForm.clean()` | 這是**表單層**規則（使用者輸入），不是資料完整性規則，因此不放 `Model.clean()` 也不放資料庫 |
-| 只檢查父留言存在且有效 | v2 起**不限回覆層數**：`parent` 可指向任何同章節的有效留言，`clean()` 只確認父留言存在（`Comment.objects.active().filter(pk=parent_id).first()`），不阻止第三層以上 |
-| 兩者共用一個 View | `Reply` 只是多了 `parent_id`，不需另開 view；Use Case 圖的 generalization 正好對應此實作 |
-| 顯示以遞迴呈現 | 模板以遞迴顯示多層回覆；`Comment.get_replies()` 取得直接子留言 |
+| 驗證放在 `CommentForm` | 這是**表單層**規則（使用者輸入），不是資料完整性規則，因此不放 `Model.clean()` 也不放資料庫 |
+| `clean_content()` | `strip()` 後為空 → `Comment cannot be empty.`；避免只有空白的留言 |
+| `clean()` 查 `Comment.objects.active()` | `parent_id` 指向的留言若已被軟刪除，回 `The comment you replied to no longer exists.`。**用 `active()` 而非 `get(pk=)`**，讓軟刪除的留言不能再被回覆 |
+| **回覆層數不限** | `clean()` 只檢查 `parent_id` 是否存在且 **active**，不要求 parent 是頂層留言（原始碼註解：`Multi-level replies are allowed`）；Use Case 圖的 generalization 仍然成立，因為回覆就是帶 `parent` 的留言 |
+| **失敗也回 `302`** | 兩個分支都以 `return redirect('novels:chapter_read', novel_pk=novel.pk, order=order)` 結束；失敗時 `messages.error` 取得 `form.errors.get('__all__')[0]`，沒有 `__all__` 錯誤則用 fallback 文字 |
+| 兩者共用一個 View | `Reply` 只是多了 `parent_id`，不需另開 view |
+| `comment.user = request.user` | 留言者由 session 決定，不由表單輸入 |
+| `save(commit=False)` 後才補三個外鍵 | `user` / `chapter` 不從表單取得，`parent` 經 `clean()` 驗證；三者都補好後才 `save()`，因此只發一次 `INSERT` |
+| `Comment` 獨立一條生命線 | `form.save(commit=False)` 回傳的是 **`Comment` 實例**，屬性賦值與 `save()` 都是對該實例發送，不是對類別層級的 `Model` |
+| **`comment.save()` 就是一般的 `Model.save()`** | `Comment` 繼承 `models.Model` 且**沒有覆寫 `save()`**（不像 `Chapter.save()` 會先算 `word_count`），所以這一行只發出**一次** `INSERT INTO interaction_comment`，內容包含先前剛設好的三個外鍵 `user_id`、`chapter_id`、`parent_id`，以及 `content`；`is_active` 取 default `1`、`is_spoiler` 取 default `0`、`created_at` 由 `auto_now_add` 填入 |
+| **成功路徑一定有寫入** | `messages.success` 在 `comment.save()` **之後**才呼叫；圖上 SQLite 在驗證通過分支收到 `INSERT`、在驗證失敗分支「完全不寫入」，兩條路徑分得清楚 |
 
 ### 為什麼不用資料庫約束
 
-「父留言必須存在且同章節」是跨列的應用層規則。要資料庫層保證，得用 trigger 或額外查詢，對 prototype 而言成本過高。**應用層驗證 + 文件說明**是合理取捨，已在 `03-er-diagram.md` 的約束總表標明。
+「回覆對象必須存在且未被刪除」是**跨列**檢查（parent 在另一列、而且是軟刪除狀態），單表的 `CHECK` 或 `FOREIGN KEY` 都無法表達。要資料庫層保證，得用 trigger 或在刪除時 CASCADE，對 prototype 而言成本過高。**應用層驗證 + 單元測試覆蓋**是合理取捨。
 
 ### 對應關係
 
 | 圖上元素 | Class 圖 | 需求 |
 |---|---|---|
-| `CommentForm.clean()` | （表單，不在 Class 圖） | G3 |
-| `Comment.parent` | `Comment`（自關聯） | D6 |
-| `Comment.get_replies()` | `Comment` | D6 |
+| `CommentForm.clean_content()` / `clean()` | （表單，不在 Class 圖） | G3 |
+| `Comment.parent` | `Comment`（自關聯，程式允許任意層，D6 規格為一層） | D6 |
+| `Comment.objects.active()` / `.top_level()` | `Comment` QuerySet | D3、D6 |
+| `INSERT INTO interaction_comment`（`Comment.save()`） | `Comment` | D3、D6 |
+| `messages.error` / `messages.success` | Django framework | — |
 
 ---
 
@@ -580,7 +634,7 @@ sequenceDiagram
 | D1 | 收藏／取消收藏 | SD-1 |
 | D2 | 我的收藏 | SD-1（收藏後寫入，列表頁讀取） |
 | D3 | 章節評論 | SD-4 |
-| D6 | 多層回覆 | SD-4（`clean()` 僅驗證父留言存在，不限層數） |
+| D6 | 一層回覆 | SD-4（`CommentForm.clean()` 只驗證 parent 存在；程式允許跨層回覆） |
 | **E2** | **新建作品** | **SD-2** |
 | E4 | 刪除作品 | SD-5 |
 | E5 | 章節管理 | SD-3（權限 → 新增／刪除、`order` 策略） |
@@ -598,7 +652,7 @@ sequenceDiagram
 
 ## 已驗證
 
-五段 Mermaid 語法已用 `@mermaid-js/mermaid-cli`（v12.2.0）實際渲染通過，PNG 輸出於同目錄：
+十二段 Mermaid 語法已用 `@mermaid-js/mermaid-cli`（v12.2.0）實際渲染通過，PNG 輸出於同目錄：
 
 | 圖 | 檔案 | 狀態 |
 |---|---|---|
@@ -612,19 +666,23 @@ sequenceDiagram
 | SD-8 多層回覆＋按讚（D6 v2） | `sequence-8-comment-like.png` | ✅ |
 | SD-9 追蹤作者＋通知（v2） | `sequence-9-follow-notify.png` | ✅ |
 | SD-10 違規檢舉（F2 v2） | `sequence-10-report.png` | ✅ |
+| SD-11 討論版發文／回覆／按讚（v2 社群） | `sequence-11-discussion.png` | ✅ |
+| SD-12 留言即時翻譯（v2 社群） | `sequence-12-translate.png` | ✅ |
 
 ## 如何預覽
 
 1. 開 <https://mermaid.live>，貼上任一個 `mermaid` 區塊。
 2. 或安裝 VS Code 擴充 **Markdown Preview Mermaid Support** 直接預覽此檔。
 
+> **向量版本**：每張 sequence 圖在 PNG 旁同時提供同名 `.svg`（如 `sequence-1-favorite.svg`），向量格式放大／列印不失真；PNG 保留作為預覽縮圖。SVG 由 `mmdc -i … -o <name>.svg` 產生。
+
 ---
 
 # v2 擴充：閱讀 / 互動 / 管理
 
-> 以下為 v2 擴充流程，涵蓋原 SD-1~SD-5 未涵蓋的功能；SD-3/SD-4 另補多層回覆/按讚/劇透與草稿/定時發布。
+> The following v2 extension flows cover features not in SD-1 to SD-5; SD-3/SD-4 also cover multi-level replies, likes, spoilers, and drafts/scheduled publishing.
 
-## SD-6 閱讀進度續讀(C5)
+## SD-6 Reading progress / continue reading (C5)
 
 ```mermaid
 sequenceDiagram
@@ -633,40 +691,43 @@ sequenceDiagram
     participant RP as ReadingProgress
     participant DB as SQLite
     R->>V: GET /novels/{pk}/chapters/{order}/
-    V->>DB: 取章節(visible(): active & !draft & 已發布)
-    V->>DB: Chapter.view_count + 1
-    V->>RP: update_or_create(user, novel, chapter=當前章)
+    V->>DB: Chapter.objects.visible() (active, not draft, scheduled due)
+    V->>DB: Chapter.view_count + 1 (published, non-author only)
+    V->>RP: update_or_create(user, novel, defaults={chapter})
     RP->>DB: INSERT/UPDATE interaction_readingprogress
-    V-->>R: 200 章節頁
-    Note over R,V: 記錄閱讀進度
+    V-->>R: 200 render chapter page
+    Note over R,V: reading position recorded
     R->>V: GET /novels/{pk}/
     V->>RP: filter(user, novel).first()
-    V-->>R: 顯示Continue reading 第 Ch.N 章
+    V-->>R: show "Continue reading" -> Ch.N
 ```
 
-## SD-7 草稿 / 定時發布(C6)
+## SD-7 Draft / scheduled publishing (C6)
 
 ```mermaid
 sequenceDiagram
     actor A as Author
     participant V as chapter_create / chapter_toggle_draft
     participant S as NovelService
+    participant F as ChapterForm
     participant DB as SQLite
-    A->>V: POST 新增章節(含 scheduled_at) / toggle-draft
-    V->>V: can_edit(novel, user) 否 403
-    alt 新增章節
+    A->>V: POST new chapter (with scheduled_at) / POST toggle-draft
+    V->>V: author_or_admin.can_edit(novel, user)? no -> 403
+    alt create chapter
+        V->>F: is_valid()
+        F-->>V: cleaned title, content, scheduled_at
         V->>S: create_chapter(novel, title, content)
-        S->>DB: INSERT novels_chapter(order, published_at)
-        V->>DB: 更新 scheduled_at(update_fields)
-    else 切換草稿
-        V->>DB: is_draft 取反, save(update_fields=['is_draft'])
+        S->>DB: INSERT novels_chapter(order = MAX+1, published_at = now)
+        V->>DB: UPDATE scheduled_at
+    else toggle draft
+        V->>DB: "is_draft = not is_draft, save only is_draft"
     end
-    Note over DB: visible() 過濾:is_draft=False 且(scheduled_at 為空或<=now)
-    A-->>V: 302 導回作品頁
-    Note over A,DB: 草稿/未到期章節對讀者 404
+    Note over DB: visible() filter: is_draft=False AND (scheduled_at is null OR <= now)
+    A-->>V: 302 redirect to novel page
+    Note over A,DB: draft / not-yet-due chapters return 404 to readers
 ```
 
-## SD-8 留言 + 按讚(D6 v2)
+## SD-8 Comment + like (D6 v2)
 
 ```mermaid
 sequenceDiagram
@@ -674,18 +735,18 @@ sequenceDiagram
     participant V as comment_create / comment_like_toggle
     participant F as CommentForm
     participant DB as SQLite
-    R->>V: POST comment(可含 parent_id)
-    V->>F: validate
-    F-->>V: parent 驗證(存在且有效,不限層數)
-    V->>DB: INSERT interaction_comment
+    R->>V: POST comment (optional parent_id)
+    V->>F: is_valid()
+    F-->>V: parent exists and is active (any depth)
+    V->>DB: INSERT interaction_comment (parent = target)
     R->>V: POST /comments/{pk}/like/
-    V->>DB: likes M2M add/remove
-    V-->>R: 302 導回章節頁
+    V->>DB: likes M2M add/remove (toggle)
+    V-->>R: 302 redirect to chapter page
 ```
 
-> 註：`Comment.is_spoiler` 欄位已存在於 schema（v2），但目前 UI 未提供設定入口；按讚透過 M2M 切換實作。
+> Note: `Comment.is_spoiler` exists in the schema (v2) but the UI has no control to set it yet; likes are implemented as an M2M toggle.
 
-## SD-9 追蹤作者 + 通知(v2)
+## SD-9 Follow author + notifications (v2)
 
 ```mermaid
 sequenceDiagram
@@ -693,25 +754,95 @@ sequenceDiagram
     participant V as follow_toggle
     participant DB as SQLite
     R->>V: POST /users/{username}/follow/
-    V->>V: 若 target == 自己 → 阻擋
-    V->>DB: Follow add/remove(切換)
-    V-->>R: 302 導回作者頁
-    Note over DB: 通知列表 /notifications/ + 標為已讀端點存在,
-    Note over DB: 但目前未在追蹤/回覆流程自動產生 Notification 記錄
+    V->>V: if target == self -> block
+    V->>DB: Follow add/remove (toggle)
+    V-->>R: 302 redirect to author page
+    Note over DB: notification list /notifications/ + mark-all-read endpoint exist,
+    Note over DB: but no Notification row is auto-created on follow/reply yet
 ```
 
-> 註：`Notification` model、列表頁與「全部標為已讀」端點已實作；自動產生通知（如新章節/回覆時）目前僅在測試中建立，尚未接入實際流程（屬 v2 雛形）。
+> Note: the `Notification` model, list page and "mark all read" endpoint are implemented; auto-generating notifications (new chapter / reply) is currently only exercised in tests, not wired into the live flow (v2 prototype).
 
-## SD-10 違規檢舉(F2 v2)
+## SD-10 Content report (F2 v2)
 
 ```mermaid
 sequenceDiagram
     actor R as Reader
     participant V as report_create
     participant DB as SQLite
-    R->>V: POST /novels/{pk}/report/ reason
-    V->>V: reason 必填驗證
+    R->>V: POST /novels/{pk}/report/ with reason
+    V->>V: require non-empty reason
     V->>DB: INSERT interaction_report(status=open)
-    V-->>R: 302 導回
-    Note over DB: admin 於 Django Admin 檢視/處理檢舉
+    V-->>R: 302 redirect back
+    Note over DB: admin reviews/acts on reports in Django Admin
 ```
+
+## SD-11 Discussion board: post, reply, like (v2 community)
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant L as discussion_list
+    participant C as discussion_create
+    participant D as discussion_detail
+    participant RP as discussion_reply
+    participant LK as discussion_like_toggle
+    participant F as DiscussionForm / DiscussionReplyForm
+    participant DB as SQLite
+    U->>L: GET /discussions/ optional ?novel=
+    L->>DB: Discussion.objects.filter(is_active=True) + filter(novel)
+    L-->>U: 200 board page with pagination
+    U->>C: POST /discussions/new/ title, body, optional novel+chapter
+    C->>F: is_valid()
+    F-->>C: chapter must belong to novel, else non-field error
+    C->>DB: INSERT interaction_discussion(user=request.user)
+    C-->>U: 302 redirect to discussion_detail
+    U->>D: GET /discussions/{pk}/
+    D->>DB: Discussion + top-level active replies
+    D-->>U: 200 detail with threaded replies
+    U->>RP: POST /discussions/{pk}/reply/ content, optional parent_id
+    RP->>F: DiscussionReplyForm validate
+    F-->>RP: parent must be active in same discussion
+    RP->>DB: INSERT interaction_discussionreply
+    RP-->>U: 302 redirect to detail
+    U->>LK: POST /discussions/{pk}/like/
+    LK->>DB: likes M2M add/remove toggle
+    LK-->>U: 302 redirect to detail
+```
+
+> Note: deleting a discussion is a soft delete handled by `discussion_delete`; the owner or an admin sets `is_active=False` and hides all replies. Guests may browse the board and detail pages but every write action requires login.
+
+## SD-12 On-demand comment translation (v2 community)
+
+```mermaid
+sequenceDiagram
+    actor R as Reader
+    participant P as chapter_read page
+    participant V as comment_translate
+    participant T as TranslationService
+    participant Cache as Django cache
+    participant G as Online translator
+    participant DB as SQLite
+    R->>P: click "Translate" on a comment
+    P->>V: POST /comments/{pk}/translate/ with CSRF token
+    V->>DB: get active Comment by pk, else 404
+    V->>T: translate_text(comment.content, target=UI language)
+    T->>Cache: lookup key bt:target:md5
+    alt cache hit
+        Cache-->>T: cached translation
+    else cache miss
+        T->>G: GoogleTranslator(source=auto, target).translate
+        G-->>T: translated text
+        T->>Cache: store result for 24h
+    end
+    alt success
+        T-->>V: translated text
+        V-->>P: 200 JSON ok=true, translated
+        P-->>R: show translation inline, button becomes Hide translation
+    else failure
+        T-->>V: raise TranslationError
+        V-->>P: 502 JSON ok=false, error
+        P-->>R: show translation failed message
+    end
+```
+

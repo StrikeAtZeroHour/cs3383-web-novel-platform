@@ -3,7 +3,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponseForbidden
+from django.core.paginator import Paginator
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
@@ -11,8 +12,9 @@ from django.views.decorators.http import require_POST
 from accounts.permissions import author_or_admin, comment_owner
 from novels.models import Chapter, Novel
 
-from .forms import CommentForm, RatingForm
-from .models import Comment, Favorite, Rating
+from .forms import CommentForm, DiscussionForm, DiscussionReplyForm, RatingForm
+from .models import Comment, Discussion, DiscussionReply, Favorite, Rating
+from .translation import TranslationError, target_language_code, translate_text
 
 
 # ---------------------------------------------------------------- favorites
@@ -143,7 +145,27 @@ def comment_like_toggle(request, pk):
     )
 
 
+# ---------------------------------------------------------------- translation
+
+@require_POST
+def comment_translate(request, pk):
+    """Translate a comment into the reader's current UI language (like x.com).
+
+    Returns JSON `{ok, translated, target}`. No login is required because the
+    comment is already public; rate-limited only by the cache.
+    """
+    comment = get_object_or_404(Comment.objects.active(), pk=pk)
+    target = target_language_code()
+    try:
+        translated = translate_text(comment.content)
+    except TranslationError as exc:
+        return JsonResponse(
+            {'ok': False, 'error': str(exc), 'target': target}, status=502)
+    return JsonResponse({'ok': True, 'translated': translated, 'target': target})
+
+
 # ---------------------------------------------------------------- follow
+
 
 @login_required
 @require_POST
@@ -200,3 +222,143 @@ def report_create(request, novel_pk):
         Report.objects.create(reporter=request.user, novel=novel, reason=reason)
         messages.success(request, _('Report submitted.'))
     return redirect('novels:novel_detail', pk=novel.pk)
+
+
+# ---------------------------------------------------------------- discussion board
+
+def discussion_list(request):
+    """Site-wide discussion board, optionally filtered by novel (community)."""
+    discussions = (
+        Discussion.objects.filter(is_active=True)
+        .select_related('user__profile', 'novel', 'chapter')
+        .prefetch_related('likes')
+    )
+    novel_id = request.GET.get('novel')
+    if novel_id:
+        discussions = discussions.filter(novel_id=novel_id)
+
+    paginator = Paginator(discussions, 20)
+    page = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'page_obj': page,
+        'novels': Novel.objects.published().order_by('title'),
+        'selected_novel': novel_id,
+    }
+    return render(request, 'interaction/discussion_list.html', context)
+
+
+@login_required
+def discussion_create(request):
+    """Start a new discussion post; optionally pin a novel and chapter."""
+    if request.method == 'POST':
+        form = DiscussionForm(request.POST)
+        if form.is_valid():
+            discussion = form.save(commit=False)
+            discussion.user = request.user
+            discussion.save()
+            messages.success(request, _('Discussion posted.'))
+            return redirect('interaction:discussion_detail', pk=discussion.pk)
+    else:
+        form = DiscussionForm()
+    return render(
+        request, 'interaction/discussion_form.html', {'form': form})
+
+
+def discussion_detail(request, pk):
+    """Show a discussion post and its threaded replies."""
+    discussion = get_object_or_404(
+        Discussion.objects.select_related('user__profile', 'novel', 'chapter'),
+        pk=pk,
+    )
+    if not discussion.is_active and not request.user.is_staff:
+        raise Http404(_('Discussion not found.'))
+
+    replies = (
+        DiscussionReply.objects.filter(
+            discussion=discussion, is_active=True, parent__isnull=True)
+        .select_related('user__profile')
+        .prefetch_related('replies__user__profile', 'likes')
+    )
+    context = {
+        'discussion': discussion,
+        'replies': replies,
+        'reply_form': DiscussionReplyForm(discussion=discussion),
+    }
+    return render(request, 'interaction/discussion_detail.html', context)
+
+
+@login_required
+@require_POST
+def discussion_reply(request, pk):
+    """Post a threaded reply to a discussion (any depth)."""
+    discussion = get_object_or_404(Discussion, pk=pk, is_active=True)
+    form = DiscussionReplyForm(request.POST, discussion=discussion)
+    if form.is_valid():
+        reply = form.save(commit=False)
+        reply.discussion = discussion
+        reply.user = request.user
+        reply.parent = form.cleaned_data.get('parent')
+        reply.save()
+        messages.success(request, _('Reply posted.'))
+    else:
+        error = form.errors.get('__all__')
+        messages.error(
+            request,
+            error[0] if error else _('Please check your reply and try again.'),
+        )
+    return redirect('interaction:discussion_detail', pk=discussion.pk)
+
+
+@login_required
+@require_POST
+def discussion_like_toggle(request, pk):
+    """Toggle a like on a discussion post."""
+    discussion = get_object_or_404(Discussion, pk=pk)
+    if discussion.likes.filter(pk=request.user.pk).exists():
+        discussion.likes.remove(request.user)
+    else:
+        discussion.likes.add(request.user)
+    return redirect('interaction:discussion_detail', pk=discussion.pk)
+
+
+@login_required
+@require_POST
+def discussion_reply_like_toggle(request, pk):
+    """Toggle a like on a discussion reply."""
+    reply = get_object_or_404(DiscussionReply, pk=pk)
+    if reply.likes.filter(pk=request.user.pk).exists():
+        reply.likes.remove(request.user)
+    else:
+        reply.likes.add(request.user)
+    return redirect('interaction:discussion_detail', pk=reply.discussion_id)
+
+
+@login_required
+@require_POST
+def discussion_delete(request, pk):
+    """Soft-delete a discussion post (owner or admin); replies hidden too."""
+    discussion = get_object_or_404(Discussion, pk=pk)
+    is_owner = discussion.user_id == request.user.pk
+    if not (is_owner or request.user.is_admin()):
+        return HttpResponseForbidden(_('You are not allowed to delete this post.'))
+    discussion.is_active = False
+    discussion.save(update_fields=['is_active'])
+    discussion.replies.update(is_active=False)
+    messages.success(request, _('Discussion deleted.'))
+    return redirect('interaction:discussion_list')
+
+
+@login_required
+@require_POST
+def discussion_report(request, pk):
+    """Report a discussion post (F2 extension)."""
+    from .models import Report
+
+    discussion = get_object_or_404(Discussion, pk=pk)
+    reason = request.POST.get('reason', '').strip()
+    if reason:
+        Report.objects.create(
+            reporter=request.user, discussion=discussion, reason=reason)
+        messages.success(request, _('Report submitted.'))
+    return redirect('interaction:discussion_detail', pk=discussion.pk)

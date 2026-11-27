@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ discussion.title }} · {% trans "Discussion board" %}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'interaction:discussion_list' %}">{% trans "Discussion board" %}</a></li>
+    {% if discussion.novel %}
+      <li class="breadcrumb-item"><a href="{% url 'interaction:discussion_list' %}?novel={{ discussion.novel.pk }}">{{ discussion.novel.title }}</a></li>
+    {% endif %}
+    <li class="breadcrumb-item active" aria-current="page">{{ discussion.title|truncatechars:40 }}</li>
+  </ol>
+</nav>
+
+<article class="surface-card p-3 mb-4">
+  <div class="d-flex justify-content-between align-items-start gap-2">
+    <div>
+      <h1 class="h4 mb-1">{{ discussion.title }}</h1>
+      <div class="meta-sm text-body-secondary">
+        {{ discussion.user.profile.display_name }} · {{ discussion.created_at|date:"Y-m-d H:i" }}
+        {% if discussion.novel %}
+          <span class="badge text-bg-secondary ms-1">{{ discussion.novel.title }}{% if discussion.chapter %} · Ch.{{ discussion.chapter.order }} {{ discussion.chapter.title }}{% endif %}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'interaction:discussion_like' discussion.pk %}">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-secondary tap" type="submit" aria-label="{% trans 'Like' %}">♥ {{ discussion.likes.count }}</button>
+        </form>
+        {% if discussion.user_id == user.pk or user.is_admin %}
+          <form method="post" action="{% url 'interaction:discussion_delete' discussion.pk %}" onsubmit="return confirm('{% trans "Delete this discussion?" %}');">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger tap" type="submit">{% trans "Delete" %}</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <span class="meta-sm">♥ {{ discussion.likes.count }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="mt-3" style="white-space: pre-wrap;">{{ discussion.body }}</div>
+
+  {% if user.is_authenticated %}
+    <details class="mt-3">
+      <summary class="meta-sm">{% trans "Report this post" %}</summary>
+      <form method="post" action="{% url 'interaction:discussion_report' discussion.pk %}" class="mt-2 d-flex gap-2">
+        {% csrf_token %}
+        <input class="form-control form-control-sm" type="text" name="reason" maxlength="200" placeholder="{% trans 'Reason for reporting' %}" required>
+        <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Report" %}</button>
+      </form>
+    </details>
+  {% endif %}
+</article>
+
+<h2 class="h5 mb-3">{% trans "Replies" %} ({{ replies|length }})</h2>
+
+{% if user.is_authenticated %}
+  <form method="post" action="{% url 'interaction:discussion_reply' discussion.pk %}" class="surface-card p-3 mb-4">
+    {% csrf_token %}
+    <label class="form-label visually-hidden" for="new-reply">{% trans "Reply" %}</label>
+    <textarea class="form-control mb-2" id="new-reply" name="content" rows="3" placeholder="{% trans 'Write a reply...' %}"></textarea>
+    <button class="btn btn-sm btn-accent" type="submit">{% trans "Post reply" %}</button>
+  </form>
+{% else %}
+  <p class="meta-sm"><a href="{% url 'accounts:login' %}?next={{ request.path }}">{% trans "Log in" %}</a> {% trans "to reply." %}</p>
+{% endif %}
+
+{% for reply in replies %}
+  {% include "interaction/_discussion_reply.html" with reply=reply %}
+{% empty %}
+  <div class="empty-state"><span class="emoji">💬</span>{% trans "No replies yet." %}</div>
+{% endfor %}
+{% endblock %}

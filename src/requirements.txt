@@ -5,3 +5,7 @@ asgiref==3.13.0
 sqlparse==0.6.1
 tzdata==2026.6
 pillow==13.0.0
+# On-demand content translation for comments/discussions (free online backend).
+deep-translator==1.11.4
+beautifulsoup4==4.15.0
+requests==2.34.2

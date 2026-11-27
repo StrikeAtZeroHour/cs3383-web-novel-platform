@@ -498,3 +498,530 @@ class NewInteractionFeatureTests(TestCase):
         self.client.post('/notifications/read/')
         self.assertFalse(
             Notification.objects.filter(recipient=self.user, is_read=False).exists())
+
+# =====================================================================
+# Translation (comment / discussion "Translate" button)
+# =====================================================================
+
+from unittest import mock
+
+from django.core.cache import cache
+
+from interaction import translation as translation_mod
+
+
+class TranslationServiceTests(TestCase):
+    """interaction/translation.py: language mapping, caching, failures."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_target_language_code_maps_zh_hant(self):
+        from django.utils import translation
+        with translation.override("zh-hant"):
+            self.assertEqual(translation_mod.target_language_code(), "zh-TW")
+
+    def test_target_language_code_defaults_to_en(self):
+        from django.utils import translation
+        with translation.override("en"):
+            self.assertEqual(translation_mod.target_language_code(), "en")
+
+    def test_empty_text_returns_empty_without_calling_service(self):
+        with mock.patch.object(translation_mod, "translate_text", wraps=translation_mod.translate_text):
+            self.assertEqual(translation_mod.translate_text("   "), "")
+
+    def test_translate_text_uses_backend_and_caches(self):
+        calls = {"n": 0}
+
+        class FakeTranslator:
+            def __init__(self, source, target):
+                self.target = target
+
+            def translate(self, text):
+                calls["n"] += 1
+                return f"[{self.target}] {text}"
+
+        with mock.patch("deep_translator.GoogleTranslator", FakeTranslator):
+            first = translation_mod.translate_text("hello", target="zh-TW")
+            second = translation_mod.translate_text("hello", target="zh-TW")
+        self.assertEqual(first, "[zh-TW] hello")
+        self.assertEqual(second, first)
+        self.assertEqual(calls["n"], 1)
+
+    def test_translate_text_raises_on_backend_error(self):
+        class BoomTranslator:
+            def __init__(self, source, target):
+                pass
+
+            def translate(self, text):
+                raise RuntimeError("network down")
+
+        with mock.patch("deep_translator.GoogleTranslator", BoomTranslator):
+            with self.assertRaises(translation_mod.TranslationError):
+                translation_mod.translate_text("hello", target="zh-TW")
+
+
+class CommentTranslateEndpointTests(TestCase):
+    """INT-TRANSLATE: the JSON endpoint behind the comment Translate button."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = make_user(username="txuser")
+        self.cat = Category.objects.create(name="Fantasy")
+        self.novel = make_novel(self.user, self.cat, title="TxN")
+        self.chapter = Chapter.objects.create(
+            novel=self.novel, title="c", content="x", order=1)
+        self.comment = Comment.objects.create(
+            user=self.user, chapter=self.chapter, content="Bonjour le monde")
+
+    def test_translate_returns_json(self):
+        class FakeTranslator:
+            def __init__(self, source, target):
+                pass
+
+            def translate(self, text):
+                return "Hello world"
+
+        with mock.patch("deep_translator.GoogleTranslator", FakeTranslator):
+            r = self.client.post(f"/comments/{self.comment.pk}/translate/")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["translated"], "Hello world")
+
+    def test_translate_requires_post(self):
+        r = self.client.get(f"/comments/{self.comment.pk}/translate/")
+        self.assertEqual(r.status_code, 405)
+
+    def test_translate_unknown_comment_404(self):
+        r = self.client.post("/comments/999999/translate/")
+        self.assertEqual(r.status_code, 404)
+
+    def test_translate_backend_failure_returns_502(self):
+        class BoomTranslator:
+            def __init__(self, source, target):
+                pass
+
+            def translate(self, text):
+                raise RuntimeError("fail")
+
+        with mock.patch("deep_translator.GoogleTranslator", BoomTranslator):
+            r = self.client.post(f"/comments/{self.comment.pk}/translate/")
+        self.assertEqual(r.status_code, 502)
+        self.assertFalse(r.json()["ok"])
+
+    def test_chapter_page_shows_translate_button(self):
+        r = self.client.get(f"/novels/{self.novel.pk}/chapters/1/")
+        self.assertContains(r, f"/comments/{self.comment.pk}/translate/")
+
+
+# =====================================================================
+# Discussion board
+# =====================================================================
+
+from interaction.forms import DiscussionForm, DiscussionReplyForm
+from interaction.models import Discussion, DiscussionReply
+
+
+def make_discussion(user, title="Talk", body="Body", **extra):
+    return Discussion.objects.create(user=user, title=title, body=body, **extra)
+
+
+class DiscussionModelTests(TestCase):
+    """Discussion / DiscussionReply model helpers."""
+
+    def setUp(self):
+        self.user = make_user(username="duser")
+        self.cat = Category.objects.create(name="Fantasy")
+        self.novel = make_novel(self.user, self.cat, title="DNovel")
+        self.chapter = Chapter.objects.create(
+            novel=self.novel, title="c", content="x", order=1)
+
+    def test_str_and_url(self):
+        d = make_discussion(self.user)
+        self.assertEqual(str(d), "Talk")
+        self.assertEqual(d.get_absolute_url(), f"/discussions/{d.pk}/")
+
+    def test_reply_count_counts_active_only(self):
+        d = make_discussion(self.user)
+        DiscussionReply.objects.create(discussion=d, user=self.user, content="a")
+        DiscussionReply.objects.create(
+            discussion=d, user=self.user, content="b", is_active=False)
+        self.assertEqual(d.get_reply_count(), 1)
+
+    def test_reply_get_replies(self):
+        d = make_discussion(self.user)
+        parent = DiscussionReply.objects.create(
+            discussion=d, user=self.user, content="p")
+        child = DiscussionReply.objects.create(
+            discussion=d, user=self.user, content="c", parent=parent)
+        self.assertEqual(list(parent.get_replies()), [child])
+
+
+class DiscussionFormTests(TestCase):
+    """DiscussionForm: required fields and chapter/novel consistency."""
+
+    def setUp(self):
+        self.user = make_user(username="fuser")
+        self.cat = Category.objects.create(name="Fantasy")
+        self.novel = make_novel(self.user, self.cat, title="FNovel")
+        self.other = make_novel(self.user, self.cat, title="Other")
+        self.chapter = Chapter.objects.create(
+            novel=self.novel, title="c", content="x", order=1)
+
+    def test_valid_without_novel(self):
+        form = DiscussionForm(data={"title": "T", "body": "B"})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_blank_title_invalid(self):
+        form = DiscussionForm(data={"title": "  ", "body": "B"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("title", form.errors)
+
+    def test_blank_body_invalid(self):
+        form = DiscussionForm(data={"title": "T", "body": " "})
+        self.assertFalse(form.is_valid())
+        self.assertIn("body", form.errors)
+
+    def test_chapter_must_belong_to_novel(self):
+        form = DiscussionForm(data={
+            "title": "T", "body": "B", "novel": self.other.pk,
+            "chapter": self.chapter.pk})
+        self.assertFalse(form.is_valid())
+        self.assertTrue(form.non_field_errors())
+
+    def test_chapter_infers_novel(self):
+        form = DiscussionForm(data={
+            "title": "T", "body": "B", "chapter": self.chapter.pk})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["novel"], self.novel)
+
+    def test_unpublished_novel_excluded_from_queryset(self):
+        form = DiscussionForm()
+        self.assertNotIn(
+            make_novel(self.user, self.cat, title="Hidden", published=False),
+            form.fields["novel"].queryset)
+
+
+class DiscussionReplyFormTests(TestCase):
+    """DiscussionReplyForm: blank + parent validation."""
+
+    def setUp(self):
+        self.user = make_user(username="ruser")
+        self.d = make_discussion(self.user)
+
+    def test_blank_content_invalid(self):
+        form = DiscussionReplyForm(data={"content": "  "}, discussion=self.d)
+        self.assertFalse(form.is_valid())
+
+    def test_parent_must_belong_to_same_discussion(self):
+        other = make_discussion(self.user, title="Other")
+        foreign = DiscussionReply.objects.create(
+            discussion=other, user=self.user, content="x")
+        form = DiscussionReplyForm(
+            data={"content": "hi", "parent_id": foreign.pk}, discussion=self.d)
+        self.assertFalse(form.is_valid())
+
+    def test_valid_reply_with_parent(self):
+        parent = DiscussionReply.objects.create(
+            discussion=self.d, user=self.user, content="p")
+        form = DiscussionReplyForm(
+            data={"content": "hi", "parent_id": parent.pk}, discussion=self.d)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["parent"], parent)
+
+
+class DiscussionViewTests(TestCase):
+    """discussion_list / create / detail / reply / like / delete / report."""
+
+    def setUp(self):
+        self.user = make_user(username="viewer")
+        self.other = make_user(username="other")
+        self.cat = Category.objects.create(name="Fantasy")
+        self.novel = make_novel(self.user, self.cat, title="VNovel")
+        self.chapter = Chapter.objects.create(
+            novel=self.novel, title="c", content="x", order=1)
+
+    def test_list_public_and_lists_active(self):
+        make_discussion(self.user, title="Visible")
+        make_discussion(self.user, title="Hidden", is_active=False)
+        r = self.client.get("/discussions/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Visible")
+        self.assertNotContains(r, "Hidden")
+
+    def test_list_filter_by_novel(self):
+        make_discussion(self.user, title="Pinned", novel=self.novel)
+        make_discussion(self.user, title="Loose")
+        r = self.client.get(f"/discussions/?novel={self.novel.pk}")
+        self.assertContains(r, "Pinned")
+        self.assertNotContains(r, "Loose")
+
+    def test_create_requires_login(self):
+        r = self.client.get("/discussions/new/")
+        self.assertEqual(r.status_code, 302)
+
+    def test_create_post(self):
+        self.client.force_login(self.user)
+        r = self.client.post("/discussions/new/", {
+            "title": "New post", "body": "Hello",
+            "novel": self.novel.pk, "chapter": self.chapter.pk})
+        self.assertEqual(r.status_code, 302)
+        d = Discussion.objects.get(title="New post")
+        self.assertEqual(d.user, self.user)
+        self.assertEqual(d.novel, self.novel)
+        self.assertEqual(d.chapter, self.chapter)
+
+    def test_detail_shows_post_and_replies(self):
+        d = make_discussion(self.user, title="Detail")
+        DiscussionReply.objects.create(
+            discussion=d, user=self.other, content="a reply")
+        r = self.client.get(f"/discussions/{d.pk}/")
+        self.assertContains(r, "Detail")
+        self.assertContains(r, "a reply")
+
+    def test_detail_hides_inactive_from_anonymous(self):
+        d = make_discussion(self.user, is_active=False)
+        r = self.client.get(f"/discussions/{d.pk}/")
+        self.assertEqual(r.status_code, 404)
+
+    def test_reply_post(self):
+        d = make_discussion(self.user)
+        self.client.force_login(self.other)
+        r = self.client.post(f"/discussions/{d.pk}/reply/", {"content": "hey"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(DiscussionReply.objects.filter(
+            discussion=d, user=self.other, content="hey").exists())
+
+    def test_reply_threading(self):
+        d = make_discussion(self.user)
+        parent = DiscussionReply.objects.create(
+            discussion=d, user=self.user, content="p")
+        self.client.force_login(self.other)
+        self.client.post(f"/discussions/{d.pk}/reply/", {
+            "content": "child", "parent_id": parent.pk})
+        child = DiscussionReply.objects.get(content="child")
+        self.assertEqual(child.parent, parent)
+
+    def test_like_toggle(self):
+        d = make_discussion(self.user)
+        self.client.force_login(self.other)
+        self.client.post(f"/discussions/{d.pk}/like/")
+        self.assertTrue(d.likes.filter(pk=self.other.pk).exists())
+        self.client.post(f"/discussions/{d.pk}/like/")
+        self.assertFalse(d.likes.filter(pk=self.other.pk).exists())
+
+    def test_reply_like_toggle(self):
+        d = make_discussion(self.user)
+        reply = DiscussionReply.objects.create(
+            discussion=d, user=self.user, content="x")
+        self.client.force_login(self.other)
+        self.client.post(f"/discussion-replies/{reply.pk}/like/")
+        self.assertTrue(reply.likes.filter(pk=self.other.pk).exists())
+
+    def test_delete_owner_soft_deletes_and_hides_replies(self):
+        d = make_discussion(self.user)
+        reply = DiscussionReply.objects.create(
+            discussion=d, user=self.other, content="x")
+        self.client.force_login(self.user)
+        r = self.client.post(f"/discussions/{d.pk}/delete/")
+        self.assertEqual(r.status_code, 302)
+        d.refresh_from_db()
+        reply.refresh_from_db()
+        self.assertFalse(d.is_active)
+        self.assertFalse(reply.is_active)
+
+    def test_delete_forbidden_for_non_owner(self):
+        d = make_discussion(self.user)
+        self.client.force_login(self.other)
+        r = self.client.post(f"/discussions/{d.pk}/delete/")
+        self.assertEqual(r.status_code, 403)
+        d.refresh_from_db()
+        self.assertTrue(d.is_active)
+
+    def test_admin_delete_allowed(self):
+        admin = make_user(username="boss")
+        admin.is_staff = True
+        admin.save()
+        d = make_discussion(self.user)
+        self.client.force_login(admin)
+        self.client.post(f"/discussions/{d.pk}/delete/")
+        d.refresh_from_db()
+        self.assertFalse(d.is_active)
+
+    def test_report_creates_row(self):
+        from interaction.models import Report
+        d = make_discussion(self.user)
+        self.client.force_login(self.other)
+        self.client.post(f"/discussions/{d.pk}/report/", {"reason": "spam"})
+        self.assertTrue(Report.objects.filter(
+            reporter=self.other, discussion=d, reason="spam").exists())
+
+    def test_report_without_reason_ignored(self):
+        from interaction.models import Report
+        d = make_discussion(self.user)
+        self.client.force_login(self.other)
+        self.client.post(f"/discussions/{d.pk}/report/", {"reason": "  "})
+        self.assertFalse(Report.objects.filter(discussion=d).exists())
+
+
+class DiscussionNavTests(TestCase):
+    """The navbar exposes the discussion board link."""
+
+    def test_navbar_has_discussions_link(self):
+        r = self.client.get("/")
+        self.assertContains(r, "/discussions/")
+
+# =====================================================================
+# Coverage completion: admin actions, form branches, __str__, service edges
+# =====================================================================
+
+class DiscussionAdminActionTests(TestCase):
+    """interaction/admin.py: discussion takedown/restore + reply short_content."""
+
+    def setUp(self):
+        from django.contrib import admin as dj_admin
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.test import RequestFactory
+        from interaction.admin import DiscussionAdmin, DiscussionReplyAdmin
+        self.user = make_user(username="dadmin")
+        self.d = make_discussion(self.user, title="AdminTalk")
+        self.reply = DiscussionReply.objects.create(
+            discussion=self.d, user=self.user, content="a" * 80)
+        self.discussion_admin = DiscussionAdmin(Discussion, dj_admin.site)
+        self.reply_admin = DiscussionReplyAdmin(DiscussionReply, dj_admin.site)
+        self.request = RequestFactory().get("/admin/")
+        self.request.session = {}
+        self.request._messages = FallbackStorage(self.request)
+
+    def test_takedown_discussions(self):
+        # lines 65-67: takedown sets is_active=False
+        self.discussion_admin.takedown_discussions(
+            self.request, Discussion.objects.filter(pk=self.d.pk))
+        self.d.refresh_from_db()
+        self.assertFalse(self.d.is_active)
+
+    def test_restore_discussions(self):
+        # lines 71-73: restore sets is_active=True
+        Discussion.objects.filter(pk=self.d.pk).update(is_active=False)
+        self.discussion_admin.restore_discussions(
+            self.request, Discussion.objects.filter(pk=self.d.pk))
+        self.d.refresh_from_db()
+        self.assertTrue(self.d.is_active)
+
+    def test_reply_admin_short_content(self):
+        # line 84: short_content truncates to 60 chars
+        self.assertEqual(self.reply_admin.short_content(self.reply), "a" * 60)
+
+
+class DiscussionReplyStrTests(TestCase):
+    """interaction/models.py line 355: DiscussionReply.__str__."""
+
+    def test_reply_str(self):
+        user = make_user(username="strr")
+        d = make_discussion(user, title="StrTalk")
+        reply = DiscussionReply.objects.create(
+            discussion=d, user=user, content="hello reply")
+        text = str(reply)
+        self.assertIn("StrTalk", text)
+        self.assertIn("hello reply", text)
+
+
+class DiscussionFormBlankTests(TestCase):
+    """Blank title/body are rejected at field level (required)."""
+
+    def test_blank_title_and_body_rejected(self):
+        form = DiscussionForm(data={"title": "", "body": ""})
+        self.assertFalse(form.is_valid())
+        self.assertIn("title", form.errors)
+        self.assertIn("body", form.errors)
+
+
+class DiscussionReplyFormNoDiscussionTests(TestCase):
+    """DiscussionReplyForm.clean: parent given but no discussion (line 147)."""
+
+    def test_parent_without_discussion_invalid(self):
+        form = DiscussionReplyForm(
+            data={"content": "hi", "parent_id": 999}, discussion=None)
+        self.assertFalse(form.is_valid())
+        self.assertTrue(form.non_field_errors())
+
+
+class DiscussionCreateGetTests(TestCase):
+    """discussion_create GET branch renders an empty form (lines 262-264)."""
+
+    def test_get_renders_form(self):
+        user = make_user(username="guser")
+        self.client.force_login(user)
+        r = self.client.get("/discussions/new/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "New discussion")
+
+
+class DiscussionReplyInvalidTests(TestCase):
+    """discussion_reply invalid path (lines 304-309)."""
+
+    def test_reply_with_foreign_parent_shows_error(self):
+        user = make_user(username="ivuser")
+        d = make_discussion(user)
+        other = make_discussion(user, title="Other")
+        foreign = DiscussionReply.objects.create(
+            discussion=other, user=user, content="x")
+        self.client.force_login(user)
+        r = self.client.post(
+            f"/discussions/{d.pk}/reply/",
+            {"content": "hi", "parent_id": foreign.pk}, follow=True)
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(
+            DiscussionReply.objects.filter(discussion=d, content="hi").exists())
+
+
+class DiscussionReplyLikeRemoveTests(TestCase):
+    """discussion_reply_like_toggle remove branch (line 331)."""
+
+    def test_unlike_reply(self):
+        user = make_user(username="uluser")
+        d = make_discussion(user)
+        reply = DiscussionReply.objects.create(
+            discussion=d, user=user, content="x")
+        reply.likes.add(user)
+        self.client.force_login(user)
+        self.client.post(f"/discussion-replies/{reply.pk}/like/")
+        self.assertFalse(reply.likes.filter(pk=user.pk).exists())
+
+
+class TranslationEdgeTests(TestCase):
+    """interaction/translation.py uncovered branches (lines 62, 81)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def test_no_target_raises(self):
+        # line 62: empty target -> TranslationError
+        with mock.patch.object(
+                translation_mod, "target_language_code", return_value=""):
+            with self.assertRaises(translation_mod.TranslationError):
+                translation_mod.translate_text("hi")
+
+    def test_empty_result_raises(self):
+        # line 81: backend returns empty string -> TranslationError
+        class EmptyTranslator:
+            def __init__(self, source, target):
+                pass
+
+            def translate(self, text):
+                return ""
+
+        with mock.patch("deep_translator.GoogleTranslator", EmptyTranslator):
+            with self.assertRaises(translation_mod.TranslationError):
+                translation_mod.translate_text("hi", target="zh-TW")
+
+class DiscussionCreateInvalidPostTests(TestCase):
+    """discussion_create invalid POST falls through to re-render (256->264)."""
+
+    def test_invalid_post_rerenders_form(self):
+        user = make_user(username="badpost")
+        self.client.force_login(user)
+        r = self.client.post("/discussions/new/", {"title": "", "body": ""})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(Discussion.objects.filter(user=user).exists())

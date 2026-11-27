@@ -80,6 +80,7 @@ flowchart LR
             UC_Reply([Reply to Comment])
             UC_DelComment([Delete Own Comment])
             UC_Rate([Rate Novel 1-5])
+            UC_Translate([Translate Content])
         end
 
         subgraph CR["4. Creation (login required)"]
@@ -97,6 +98,15 @@ flowchart LR
             UC_AdminPanel([Enter Admin Panel])
             UC_Takedown([Takedown Content])
         end
+
+        subgraph DB["6. Discussion Board"]
+            direction TB
+            UC_DiscList([Browse Discussions])
+            UC_DiscCreate([Post Discussion])
+            UC_DiscReply([Reply to Discussion])
+            UC_DiscLike([Like Discussion])
+            UC_DiscReport([Report Discussion])
+        end
     end
 
     %% ================= Guest =================
@@ -108,6 +118,8 @@ flowchart LR
     Guest --> UC_AuthorPage
     Guest --> UC_Register
     Guest --> UC_Login
+    Guest --> UC_DiscList
+    Guest --> UC_Translate
 
     %% ================= User =================
     User --> UC_Logout
@@ -124,6 +136,10 @@ flowchart LR
     User --> UC_DeleteNovel
     User --> UC_ManageChapter
     User --> UC_Publish
+    User --> UC_DiscCreate
+    User --> UC_DiscReply
+    User --> UC_DiscLike
+    User --> UC_DiscReport
 
     %% ================= Admin =================
     Admin --> UC_AdminPanel
@@ -157,9 +173,21 @@ flowchart LR
     UC_Rate -.->|include| UC_Login
     UC_CreateNovel -.->|include| UC_Login
     UC_AdminPanel -.->|include| UC_Login
+    UC_DiscCreate -.->|include| UC_Login
+    UC_DiscReply -.->|include| UC_Login
+    UC_DiscLike -.->|include| UC_Login
+    UC_DiscReport -.->|include| UC_Login
 
     %% Takedown can only happen inside Admin Panel
     UC_Takedown -.->|extend| UC_AdminPanel
+
+    %% Discussion board relationships
+    UC_DiscReply -.->|generalizes| UC_DiscCreate
+    UC_DiscCreate -.->|include| UC_DiscList
+    UC_DiscReply -.->|include| UC_DiscList
+
+    %% Translate is an optional add-on launched from any comment/discussion post
+    UC_Translate -.->|extend| UC_Comment
 ```
 
 ---
@@ -194,7 +222,7 @@ flowchart LR
 | Favorite Novel | 收藏／取消收藏（不得重複） | D1 | `Favorite` |
 | View My Favorites | 個人主頁的收藏分頁 | D2 | `Favorite` |
 | Post Comment | 在章節下留言 | D3 | `Comment` |
-| Reply to Comment | 多層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言，不限層數） | D6 | `Comment` |
+| Reply to Comment | 一層回覆（**generalizes** `Post Comment`：是帶 `parent` 的留言） | D6 | `Comment` |
 | Delete Own Comment | 本人或 admin 可刪（獨立用例，與「發表」無延伸關係） | D4 | `Comment`、`PermissionStrategy` |
 | Rate Novel 1-5 | 每人每作品一筆，可修改 | D7 | `Rating` |
 
@@ -218,6 +246,19 @@ flowchart LR
 
 > Takedown 只能在 Admin Panel 內觸發（實作就是 Django Admin 的 action），因此圖上以 `<<extend>>` 依附 `Enter Admin Panel`，Admin 不直接連到它。
 
+### 6. 討論版（Discussion Board，瀏覽免登入、互動需登入）
+
+| 用例（圖上英文） | 中文說明 | 對應需求 | 涉及類別 |
+|---|---|---|---|
+| Browse Discussions | 全站討論列表，可依作品篩選 | v2 社群 | `Discussion` |
+| Post Discussion | 發表討論，可指定作品與章節 | v2 社群 | `Discussion`、`DiscussionForm` |
+| Reply to Discussion | 多層回覆（**generalizes** `Post Discussion`：是帶 `parent` 的回覆） | v2 社群 | `DiscussionReply` |
+| Like Discussion | 對貼文按讚（切換） | v2 社群 | `Discussion`、`DiscussionReply` |
+| Report Discussion | 檢舉違規貼文 | F2 | `Report` |
+| Translate Content | 將留言／討論即時翻譯成目前介面語言（`<<extend>>` `Post Comment`，免登入） | v2 社群 | `TranslationService` |
+
+> **翻譯為何是 `<<extend>>` 而非獨立連線**：翻譯是讀者在「已經看到留言／貼文」後才可能選用的附加動作，沒有它也不影響閱讀，因此依附在 `Post Comment` 上以 extend 表示；實作為 `POST /comments/<pk>/translate/` 回傳 JSON，免登入（內容本身已公開）。
+
 ### 系統（System）
 
 | 用例 | 說明 | 對應需求 |
@@ -235,6 +276,7 @@ flowchart LR
 | 子用例 | 父用例 | 理由 |
 |---|---|---|
 | `Reply to Comment` | `Post Comment` | 回覆**就是**一則帶 `parent` 的留言，是留言的一種 |
+| `Reply to Discussion` | `Post Discussion` | 回覆**就是**一則帶 `parent` 的討論回覆，是討論的一種 |
 | `Filter by Category` | `Browse Novels` | 帶分類條件的瀏覽，是瀏覽的一種方式 |
 | `Search Novels` | `Browse Novels` | 帶關鍵字條件的瀏覽，是瀏覽的一種方式 |
 
@@ -248,6 +290,8 @@ flowchart LR
 |---|---|---|
 | `Publish` / `Edit` / `Delete` / `Manage Chapters` | `Manage My Novels` | 都要先在自己作品清單選定作品 |
 | `Favorite` / `Post Comment` / `Rate` / `Create Novel` / `Enter Admin Panel` | `Login` | 前置條件（見下方說明） |
+| `Post Discussion` / `Reply to Discussion` | `Browse Discussions` | 討論操作都在討論版情境中進行 |
+| `Post Discussion` / `Reply to Discussion` / `Like Discussion` / `Report Discussion` | `Login` | 前置條件（需登入才能發文／回覆／按讚／檢舉） |
 
 > ※ 圖上共 **9 條** `<<include>>` 連線：4 條指向 `Manage My Novels`、5 條指向 `Login`（`Favorite`、`Post Comment`、`Rate`、`Create Novel`、`Enter Admin Panel`）。
 >
@@ -308,8 +352,8 @@ flowchart LR
 |---|---|---|
 | `Create Novel` | SD-2 | 輸入書名建新書、`author = request.user`、預設 `is_published=False` |
 | `Manage Chapters` | SD-3 | 先驗作品歸屬（`AuthorOrAdminStrategy`）→ `get_next_order()`、軟刪除不重排 `order` |
-| `Favorite Novel` | SD-1 | 收藏／取消收藏 toggle、登入前置、`UniqueConstraint` |
-| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm.clean()` 只驗證父留言存在（v2 起不限回覆層數） |
+| `Favorite Novel` | SD-1 | 收藏／取消收藏 toggle、登入前置、`unique_together` |
+| `Post Comment` / `Reply to Comment` | SD-4 | `CommentForm.clean()` 拒絕第二層以上回覆 |
 | `Delete Novel` | SD-5 | `PermissionStrategy` 三分支、硬刪除 CASCADE |
 | `Publish Novel` | SD-2 的「附帶動作：發布」段落 | 經 `NovelService.publish()`、需權限、不檢查章節數（流程僅 2 步，未獨立成圖） |
 
@@ -386,6 +430,8 @@ flowchart LR
 1. 開 <https://mermaid.live>，貼上上面的 `mermaid` 區塊。
 2. 或安裝 VS Code 擴充 **Markdown Preview Mermaid Support** 直接預覽此檔。
 3. 匯出：mermaid.live → `Actions` → `Download PNG / SVG`。
+
+> **向量版本**：同目錄另提供 `use-case.svg`（向量，放大／列印不失真），`use-case.png` 保留作為預覽縮圖。SVG 由 `mmdc -i … -o use-case.svg` 產生。
 
 ---
 

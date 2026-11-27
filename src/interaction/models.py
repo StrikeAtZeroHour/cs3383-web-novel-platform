@@ -247,6 +247,118 @@ class Follow(models.Model):
         return f'{self.follower} follows {self.author}'
 
 
+class Discussion(models.Model):
+    """A discussion-board post (community extension).
+
+    Lives on a site-wide board but may optionally pin itself to a novel and,
+    within that novel, to a specific chapter. Replies are threaded through
+    `DiscussionReply`; deletion is a soft delete (`is_active=False`).
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='discussions',
+        verbose_name=_('User'),
+    )
+    novel = models.ForeignKey(
+        Novel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='discussions',
+        verbose_name=_('Novel'),
+    )
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='discussions',
+        verbose_name=_('Chapter'),
+    )
+    title = models.CharField(_('Title'), max_length=200)
+    body = models.TextField(_('Body'))
+    likes = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='liked_discussions',
+        verbose_name=_('Likes'),
+    )
+    is_active = models.BooleanField(_('Active'), default=True)
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Updated at'), auto_now=True)
+
+    class Meta:
+        verbose_name = _('Discussion')
+        verbose_name_plural = _('Discussions')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', '-created_at']),
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+    def get_reply_count(self) -> int:
+        """Number of active replies (used on the board list)."""
+        return self.replies.filter(is_active=True).count()
+
+    def get_absolute_url(self) -> str:
+        from django.urls import reverse
+
+        return reverse('interaction:discussion_detail', args=[self.pk])
+
+
+class DiscussionReply(models.Model):
+    """A threaded reply to a Discussion post (any depth, like Comment)."""
+
+    discussion = models.ForeignKey(
+        Discussion,
+        on_delete=models.CASCADE,
+        related_name='replies',
+        verbose_name=_('Discussion'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='discussion_replies',
+        verbose_name=_('User'),
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+        verbose_name=_('Reply to'),
+    )
+    content = models.TextField(_('Content'))
+    likes = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='liked_discussion_replies',
+        verbose_name=_('Likes'),
+    )
+    is_active = models.BooleanField(_('Active'), default=True)
+    created_at = models.DateTimeField(_('Created at'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Discussion reply')
+        verbose_name_plural = _('Discussion replies')
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['discussion', 'created_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user} on "{self.discussion}": {self.content[:30]}'
+
+    def get_replies(self):
+        """Active direct replies to this reply."""
+        return DiscussionReply.objects.filter(parent=self, is_active=True)
+
+
 class Report(models.Model):
     """A user-submitted content report (F2 extension / moderation queue)."""
 
@@ -274,6 +386,13 @@ class Report(models.Model):
         blank=True,
         related_name='reports',
     )
+    discussion = models.ForeignKey(
+        'Discussion',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='reports',
+    )
     reason = models.TextField(_('Reason'))
     status = models.CharField(
         _('Status'), max_length=20, choices=Status.choices, default=Status.OPEN)
@@ -286,6 +405,7 @@ class Report(models.Model):
 
     def __str__(self) -> str:
         return f'Report #{self.pk} ({self.status})'
+
 
 
 class OutlineItem(models.Model):

@@ -71,6 +71,9 @@
           {% if comment.is_spoiler %}<span class="badge text-bg-warning">{% trans "Spoiler" %}</span>{% endif %}
         </div>
         <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-sm btn-link p-0 meta-sm" type="button"
+                  data-translate-url="{% url 'interaction:comment_translate' comment.pk %}"
+                  data-label-show="{% trans 'Translate' %}" data-label-hide="{% trans 'Hide translation' %}">{% trans "Translate" %}</button>
           {% if user.is_authenticated %}
             <form method="post" action="{% url 'interaction:comment_like' comment.pk %}">{% csrf_token %}
               <button class="btn btn-sm btn-outline-secondary tap" type="submit" aria-label="{% trans 'Like' %}">♥ {{ comment.likes.count }}</button>
@@ -86,6 +89,7 @@
         </div>
       </div>
       <div class="mt-1" style="white-space: pre-wrap;">{{ comment.content }}</div>
+      <div class="meta-sm mt-1 d-none fst-italic" data-translation-output></div>
 
       {% for reply in comment.replies.all %}
         {% if reply.is_active %}
@@ -96,6 +100,9 @@
                 <span class="meta-sm ms-2">{{ reply.created_at|date:"Y-m-d H:i" }}</span>
               </div>
               <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-link p-0 meta-sm" type="button"
+                        data-translate-url="{% url 'interaction:comment_translate' reply.pk %}"
+                        data-label-show="{% trans 'Translate' %}" data-label-hide="{% trans 'Hide translation' %}">{% trans "Translate" %}</button>
                 {% if user.is_authenticated %}
                   <form method="post" action="{% url 'interaction:comment_like' reply.pk %}">{% csrf_token %}
                     <button class="btn btn-sm btn-outline-secondary tap" type="submit" aria-label="{% trans 'Like' %}">♥ {{ reply.likes.count }}</button>
@@ -109,6 +116,7 @@
               </div>
             </div>
             <div style="white-space: pre-wrap;">{{ reply.content }}</div>
+            <div class="meta-sm mt-1 d-none fst-italic" data-translation-output></div>
           </div>
         {% endif %}
       {% endfor %}
@@ -197,6 +205,42 @@
     }
     window.addEventListener('scroll', updateBar, { passive: true });
     updateBar();
+
+    // Translate a comment into the reader's current UI language (x.com style).
+    function getCookie(name) {
+      var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return m ? decodeURIComponent(m.pop()) : '';
+    }
+    document.querySelectorAll('[data-translate-url]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var card = btn.closest('.comment-item, .comment-replies');
+        var out = card ? card.querySelector('[data-translation-output]') : null;
+        if (!out) return;
+        if (!out.classList.contains('d-none')) {
+          out.classList.add('d-none');
+          btn.textContent = btn.getAttribute('data-label-show');
+          return;
+        }
+        if (btn.disabled) return;
+        btn.disabled = true;
+        fetch(btn.getAttribute('data-translate-url'), {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          if (data.ok) {
+            out.textContent = '🌐 ' + data.translated;
+            out.classList.remove('d-none');
+            btn.textContent = btn.getAttribute('data-label-hide');
+          } else {
+            out.textContent = data.error || '{% trans "Translation failed." %}';
+            out.classList.remove('d-none');
+          }
+        }).catch(function () {
+          out.textContent = '{% trans "Translation failed." %}';
+          out.classList.remove('d-none');
+        }).finally(function () { btn.disabled = false; });
+      });
+    });
   })();
 </script>
 {% endblock %}

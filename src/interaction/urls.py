@@ -29,6 +29,13 @@ urlpatterns = [
     # --- Comment likes ---
     path('comments/<int:pk>/like/', views.comment_like_toggle, name='comment_like'),
 
+    # --- Translation (like x.com "Translate") ---
+    path(
+        'comments/<int:pk>/translate/',
+        views.comment_translate,
+        name='comment_translate',
+    ),
+
     # --- Follow ---
     path('users/<str:username>/follow/', views.follow_toggle, name='follow_toggle'),
 
@@ -38,4 +45,18 @@ urlpatterns = [
 
     # --- Reports ---
     path('novels/<int:novel_pk>/report/', views.report_create, name='report_create'),
+
+    # --- Discussion board ---
+    path('discussions/', views.discussion_list, name='discussion_list'),
+    path('discussions/new/', views.discussion_create, name='discussion_create'),
+    path('discussions/<int:pk>/', views.discussion_detail, name='discussion_detail'),
+    path('discussions/<int:pk>/reply/', views.discussion_reply, name='discussion_reply'),
+    path('discussions/<int:pk>/like/', views.discussion_like_toggle, name='discussion_like'),
+    path('discussions/<int:pk>/delete/', views.discussion_delete, name='discussion_delete'),
+    path('discussions/<int:pk>/report/', views.discussion_report, name='discussion_report'),
+    path(
+        'discussion-replies/<int:pk>/like/',
+        views.discussion_reply_like_toggle,
+        name='discussion_reply_like',
+    ),
 ]

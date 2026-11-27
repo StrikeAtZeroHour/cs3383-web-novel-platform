@@ -1,0 +1,37 @@
+{% load i18n %}
+<div class="comment-item mb-3" id="reply-{{ reply.pk }}">
+  <div class="d-flex justify-content-between">
+    <div>
+      <strong>{{ reply.user.profile.display_name }}</strong>
+      <span class="meta-sm ms-2">{{ reply.created_at|date:"Y-m-d H:i" }}</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'interaction:discussion_reply_like' reply.pk %}">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-secondary tap" type="submit" aria-label="{% trans 'Like' %}">♥ {{ reply.likes.count }}</button>
+        </form>
+      {% else %}
+        <span class="meta-sm">♥ {{ reply.likes.count }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="mt-1" style="white-space: pre-wrap;">{{ reply.content }}</div>
+
+  {% if user.is_authenticated %}
+    <details class="mt-1">
+      <summary class="meta-sm">{% trans "Reply" %}</summary>
+      <form method="post" action="{% url 'interaction:discussion_reply' reply.discussion_id %}" class="mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="parent_id" value="{{ reply.pk }}">
+        <textarea class="form-control mb-2" name="content" rows="2" placeholder="{% trans 'Write a reply...' %}"></textarea>
+        <button class="btn btn-sm btn-outline-secondary" type="submit">{% trans "Post reply" %}</button>
+      </form>
+    </details>
+  {% endif %}
+
+  {% for child in reply.get_replies %}
+    <div class="comment-replies mt-2">
+      {% include "interaction/_discussion_reply.html" with reply=child %}
+    </div>
+  {% endfor %}
+</div>

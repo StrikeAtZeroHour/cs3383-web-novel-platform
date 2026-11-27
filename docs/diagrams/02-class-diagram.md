@@ -187,9 +187,35 @@ classDiagram
         +int reporter_id
         +int novel_id
         +int comment_id
+        +int discussion_id
         +str reason
         +str status
         +datetime created_at
+    }
+
+    class Discussion {
+        +int id
+        +int user_id
+        +int novel_id
+        +int chapter_id
+        +str title
+        +str body
+        +bool is_active
+        +datetime created_at
+        +datetime updated_at
+        +get_reply_count() int
+        +get_absolute_url() str
+    }
+
+    class DiscussionReply {
+        +int id
+        +int discussion_id
+        +int user_id
+        +int parent_id
+        +str content
+        +bool is_active
+        +datetime created_at
+        +get_replies() QuerySet
     }
 
     class OutlineItem {
@@ -210,6 +236,20 @@ classDiagram
         +delete_chapter(chapter) void
         +delete_novel(novel) void
     }
+
+    class TranslationService {
+        <<service>>
+        +translate_text(text, target) str
+        +target_language_code() str
+    }
+
+    class TranslationError {
+        <<exception>>
+    }
+
+    TranslationService ..> TranslationError : raises
+    TranslationService ..> Comment : translates
+    TranslationService ..> Discussion : translates
 
     %% ================= Permission Strategy =================
     class PermissionStrategy {
@@ -249,6 +289,14 @@ classDiagram
     User "1" -- "0..*" Follow : follows
     User "1" -- "0..*" Report : submits
     Novel "1" -- "0..*" OutlineItem : planned_by
+
+    User "1" -- "0..*" Discussion : starts
+    Novel "0..1" -- "0..*" Discussion : about
+    Chapter "0..1" -- "0..*" Discussion : about
+    Discussion "1" *-- "0..*" DiscussionReply : has
+    DiscussionReply "0..1" -- "0..*" DiscussionReply : replies
+    User "1" -- "0..*" DiscussionReply : writes
+    Discussion "0..1" -- "0..*" Report : reported
 
     %% ---- Service / Strategy 關係 ----
     NovelService ..> Novel : operates on
@@ -492,3 +540,5 @@ class CommentOwnerStrategy(PermissionStrategy):
 1. 開 <https://mermaid.live>，貼上上面的 `mermaid` 區塊。
 2. 或安裝 VS Code 擴充 **Markdown Preview Mermaid Support** 直接預覽此檔。
 3. 匯出：mermaid.live → `Actions` → `Download PNG / SVG`。
+
+> **向量版本**：同目錄另提供 `class-diagram.svg`（向量，放大／列印不失真），`class-diagram.png` 保留作為預覽縮圖。SVG 由 `mmdc -i … -o class-diagram.svg` 產生。
